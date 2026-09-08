@@ -1,6 +1,8 @@
 import { PrismaClient } from '@prisma/client';
 import { seedSettings } from './settings.seed';
 import { seedAdmin } from './admin.seed';
+import { seedCatalog } from './catalog.seed';
+import { seedProducts } from './products.seed';
 
 const prisma = new PrismaClient();
 
@@ -10,8 +12,8 @@ async function main(): Promise<void> {
 
   await seedSettings(prisma);
   await seedAdmin(prisma);
-
-  // Phase 2 adds: categories.seed.ts, attributes.seed.ts, products.seed.ts
+  await seedCatalog(prisma);
+  await seedProducts(prisma);
 
   // eslint-disable-next-line no-console
   console.log('\nSeeding complete.');
