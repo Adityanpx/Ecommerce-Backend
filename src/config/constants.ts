@@ -57,6 +57,9 @@ export const DEFAULT_SETTINGS = {
   'payment.pending_timeout_min': 30,
   'announcement.text': 'Free shipping on orders above Rs.2000',
   'announcement.enabled': true,
+  'invoice.seller_name': 'Sports Store Private Limited',
+  'invoice.seller_address': 'Pune, Maharashtra, India',
+  'invoice.seller_state': 'Maharashtra',
 } as const;
 
 export const HTTP_STATUS = {
@@ -71,4 +74,18 @@ export const HTTP_STATUS = {
   UNPROCESSABLE_ENTITY: 422,
   TOO_MANY_REQUESTS: 429,
   INTERNAL_SERVER_ERROR: 500,
+} as const;
+
+export const RETURN_WINDOW = {
+  DEFAULT_DAYS: 7,
+} as const;
+
+export const DASHBOARD = {
+  TOP_PRODUCTS_LIMIT: 10,
+  RECENT_ORDERS_LIMIT: 10,
+  LOW_STOCK_LIMIT: 20,
+} as const;
+
+export const INVOICE = {
+  DEFAULT_SELLER_NAME: 'Sports Store Private Limited',
 } as const;
