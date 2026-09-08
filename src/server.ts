@@ -8,11 +8,13 @@ import app from './app';
 import { config } from './config/env';
 import { connectDatabase, disconnectDatabase } from './config/database';
 import { logger } from './utils/logger';
+import { startJobs, stopJobs } from './jobs';
 
 async function bootstrap(): Promise<void> {
   try {
     await connectDatabase();
     logger.info('Database connected');
+    startJobs();
 
     const server = app.listen(config.port, () => {
       logger.info(`Server listening on http://localhost:${config.port}`);
@@ -22,6 +24,7 @@ async function bootstrap(): Promise<void> {
 
     const shutdown = async (signal: string): Promise<void> => {
       logger.info(`${signal} received — shutting down gracefully`);
+      stopJobs();
 
       const forceExit = setTimeout(() => {
         logger.error('Forced shutdown after 10s timeout');
