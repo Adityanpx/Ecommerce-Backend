@@ -270,7 +270,23 @@ export const authService = {
     }
 
     await tokenRepository.revokeRefreshToken(stored.id);
-    return issueTokens(payload, ctx);
+
+    // jwt.verify() returns the full decoded payload, including the old
+    // token's iat/exp/jti claims. jwt.sign() refuses to combine an
+    // expiresIn/jwtid option with a payload that already carries the
+    // corresponding exp/jti claim, so all three must be stripped before
+    // re-signing a fresh token pair.
+    const {
+      exp: _exp,
+      iat: _iat,
+      jti: _jti,
+      ...cleanPayload
+    } = payload as (CustomerTokenPayload | AdminTokenPayload) & {
+      iat?: number;
+      exp?: number;
+      jti?: string;
+    };
+    return issueTokens(cleanPayload, ctx);
   },
 
   async logout(token: string): Promise<void> {

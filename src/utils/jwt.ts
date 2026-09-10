@@ -35,7 +35,15 @@ export function signAccessToken(payload: TokenPayload): string {
 
 export function signRefreshToken(payload: TokenPayload): string {
   const secrets = getSecrets(payload.type);
-  const options: SignOptions = { expiresIn: secrets.refreshExpiry as SignOptions['expiresIn'] };
+  // jwtid guarantees uniqueness even when two refresh tokens for the same
+  // payload are issued within the same second — jwt.sign is deterministic
+  // (iat has 1s resolution), so without it, back-to-back issuance (e.g.
+  // login immediately followed by refresh) can produce byte-identical
+  // tokens, colliding on the unique token_hash column in the database.
+  const options: SignOptions = {
+    expiresIn: secrets.refreshExpiry as SignOptions['expiresIn'],
+    jwtid: crypto.randomUUID(),
+  };
   return jwt.sign(payload, secrets.refreshSecret, options);
 }
 
