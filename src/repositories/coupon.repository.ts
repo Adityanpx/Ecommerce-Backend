@@ -4,8 +4,8 @@ import { prisma } from '../config/database';
 type Client = Prisma.TransactionClient | typeof prisma;
 
 export const couponRepository = {
-  findByCode(code: string): Promise<Coupon | null> {
-    return prisma.coupon.findUnique({ where: { code: code.toUpperCase() } });
+  findByCode(code: string, client: Client = prisma): Promise<Coupon | null> {
+    return client.coupon.findUnique({ where: { code: code.toUpperCase() } });
   },
 
   findById(id: string): Promise<Coupon | null> {
@@ -31,8 +31,8 @@ export const couponRepository = {
     return prisma.coupon.update({ where: { id }, data });
   },
 
-  countUsagesByUser(couponId: string, userId: string): Promise<number> {
-    return prisma.couponUsage.count({ where: { couponId, userId } });
+  countUsagesByUser(couponId: string, userId: string, client: Client = prisma): Promise<number> {
+    return client.couponUsage.count({ where: { couponId, userId } });
   },
 
   recordUsage(

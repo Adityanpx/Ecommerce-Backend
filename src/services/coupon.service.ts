@@ -23,8 +23,9 @@ export const couponService = {
     code: string,
     lines: PricedLine[],
     userId: string | null,
+    client: Client = prisma,
   ): Promise<CouponEvaluation> {
-    const coupon = await couponRepository.findByCode(code);
+    const coupon = await couponRepository.findByCode(code, client);
 
     if (!coupon || !coupon.isActive) {
       throw ApiError.badRequest('This coupon code is not valid');
@@ -39,7 +40,7 @@ export const couponService = {
     }
 
     if (userId) {
-      const used = await couponRepository.countUsagesByUser(coupon.id, userId);
+      const used = await couponRepository.countUsagesByUser(coupon.id, userId, client);
       if (used >= coupon.usageLimitPerUser) {
         throw ApiError.badRequest('You have already used this coupon');
       }
@@ -66,7 +67,7 @@ export const couponService = {
         // CATEGORY — resolve each product's sub-category.
         const products = await Promise.all(
           [...new Set(lines.map((l) => l.productId))].map((id) =>
-            productRepository.findByIdBasic(id),
+            productRepository.findByIdBasic(id, client),
           ),
         );
         const inScope = new Set(

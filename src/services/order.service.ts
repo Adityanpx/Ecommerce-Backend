@@ -199,6 +199,7 @@ export const orderService = {
               freshCart.coupon.code,
               lines,
               freshCart.userId ?? null,
+              tx,
             );
             discountAmount = evaluation.discountAmount;
             couponId = evaluation.coupon.id;

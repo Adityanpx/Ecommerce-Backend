@@ -1,6 +1,8 @@
 import { AttributeType, CategoryAttribute, Prisma, Product, ProductStatus } from '@prisma/client';
 import { prisma } from '../config/database';
 
+type Client = Prisma.TransactionClient | typeof prisma;
+
 export interface AttributeFilter {
   attribute: CategoryAttribute;
   /** Equality values for TEXT / DROPDOWN / MULTI_SELECT, or true/false for BOOLEAN. */
@@ -198,8 +200,8 @@ export const productRepository = {
     });
   },
 
-  findByIdBasic(id: string): Promise<Product | null> {
-    return prisma.product.findUnique({ where: { id } });
+  findByIdBasic(id: string, client: Client = prisma): Promise<Product | null> {
+    return client.product.findUnique({ where: { id } });
   },
 
   slugExists(slug: string): Promise<boolean> {
