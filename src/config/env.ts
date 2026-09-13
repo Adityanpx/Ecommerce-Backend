@@ -44,6 +44,16 @@ const envSchema = z.object({
   CLOUDINARY_API_SECRET: z.string().optional(),
   CLOUDINARY_FOLDER: z.string().default('sportstore'),
 
+  // Cloudflare R2 (optional in dev — image upload simply won't work without it)
+  R2_ACCOUNT_ID: z.string().optional(),
+  R2_ACCESS_KEY_ID: z.string().optional(),
+  R2_SECRET_ACCESS_KEY: z.string().optional(),
+  R2_ENDPOINT: z.string().optional(),
+  R2_PUBLIC_BUCKET: z.string().default('ecommerce-sportstore-media'),
+  R2_PRIVATE_BUCKET: z.string().default('ecommerce-sportstore-media-private'),
+  // Public dev URL (pub-xxx.r2.dev) locally; swap for the custom CDN domain in production.
+  R2_PUBLIC_BASE_URL: z.string().optional(),
+
   // Razorpay (optional in dev)
   RAZORPAY_KEY_ID: z.string().optional(),
   RAZORPAY_KEY_SECRET: z.string().optional(),
@@ -137,6 +147,19 @@ export const config = {
     folder: env.CLOUDINARY_FOLDER,
     isConfigured: Boolean(
       env.CLOUDINARY_CLOUD_NAME && env.CLOUDINARY_API_KEY && env.CLOUDINARY_API_SECRET,
+    ),
+  },
+
+  r2: {
+    accountId: env.R2_ACCOUNT_ID,
+    accessKeyId: env.R2_ACCESS_KEY_ID,
+    secretAccessKey: env.R2_SECRET_ACCESS_KEY,
+    endpoint: env.R2_ENDPOINT,
+    publicBucket: env.R2_PUBLIC_BUCKET,
+    privateBucket: env.R2_PRIVATE_BUCKET,
+    publicBaseUrl: env.R2_PUBLIC_BASE_URL,
+    isConfigured: Boolean(
+      env.R2_ACCOUNT_ID && env.R2_ACCESS_KEY_ID && env.R2_SECRET_ACCESS_KEY && env.R2_ENDPOINT,
     ),
   },
 

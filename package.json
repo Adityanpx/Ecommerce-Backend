@@ -30,6 +30,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.687.0",
+    "@aws-sdk/s3-request-presigner": "^3.687.0",
     "@prisma/client": "^5.22.0",
     "@sentry/node": "^8.55.2",
     "@sentry/profiling-node": "^8.55.2",
