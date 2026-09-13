@@ -106,5 +106,8 @@ export const bulkProductActionSchema = z.object({
 export const uploadSignatureSchema = z.object({
   body: z.object({
     folder: z.enum(['products', 'banners', 'returns', 'avatars', 'categories']),
+    // S3-style presigning binds the content-type into the signed URL itself,
+    // so the client must declare it up front (Cloudinary's signature didn't need this).
+    contentType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
   }),
 });

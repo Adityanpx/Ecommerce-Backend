@@ -1,7 +1,7 @@
 import { contentRepository } from '../repositories/content.repository';
 import { settingsService } from './settings.service';
 import { notificationService } from './notification.service';
-import { deleteAsset } from '../integrations/cloudinary/deleteAsset';
+import { deleteAsset } from '../integrations/r2/deleteAsset';
 import { ApiError } from '../utils/ApiError';
 
 export const contentService = {

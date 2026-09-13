@@ -1,13 +1,19 @@
-import { createUploadSignature, UploadSignature } from '../integrations/cloudinary/signUpload';
+import { createPresignedUpload, PresignedUpload } from '../integrations/r2/presignUpload';
 import { UPLOAD } from '../config/constants';
 
 export const uploadService = {
-  getSignature(folder: string): UploadSignature & {
-    maxFileSizeMb: number;
-    allowedTypes: readonly string[];
-  } {
+  async getSignature(
+    folder: string,
+    contentType: string,
+  ): Promise<
+    PresignedUpload & {
+      maxFileSizeMb: number;
+      allowedTypes: readonly string[];
+    }
+  > {
+    const presigned = await createPresignedUpload(folder, contentType);
     return {
-      ...createUploadSignature(folder),
+      ...presigned,
       maxFileSizeMb: UPLOAD.MAX_FILE_SIZE_MB,
       allowedTypes: UPLOAD.ALLOWED_IMAGE_TYPES,
     };

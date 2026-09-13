@@ -14,7 +14,7 @@ import { createUniqueSlug } from '../utils/slugify';
 import { generateSku } from '../utils/generators';
 import { ApiError, FieldError } from '../utils/ApiError';
 import { UPLOAD } from '../config/constants';
-import { deleteAsset } from '../integrations/cloudinary/deleteAsset';
+import { deleteAsset } from '../integrations/r2/deleteAsset';
 
 type AttributeInputValue = string | number | boolean | string[] | null;
 
@@ -501,7 +501,7 @@ export const productService = {
     if (!image) throw ApiError.notFound('Image not found');
 
     await imageRepository.delete(id);
-    // Remove from Cloudinary after the DB row is gone. Best-effort.
+    // Remove from R2 after the DB row is gone. Best-effort.
     void deleteAsset(image.publicId);
 
     // If the primary image was removed, promote the next one.

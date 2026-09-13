@@ -86,7 +86,7 @@ export const adminProductController = {
   }),
 
   uploadSignature: asyncHandler(async (req: Request, res: Response) => {
-    const signature = uploadService.getSignature(req.body.folder);
+    const signature = await uploadService.getSignature(req.body.folder, req.body.contentType);
     res.json(ApiResponse.ok(signature));
   }),
 };
