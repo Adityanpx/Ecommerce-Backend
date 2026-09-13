@@ -1,10 +1,18 @@
 import { Request, Response } from 'express';
 import { returnService } from '../../services/return.service';
+import { uploadService } from '../../services/upload.service';
 import { ApiResponse } from '../../utils/ApiResponse';
 import { asyncHandler } from '../../utils/asyncHandler';
 import { parsePagination, buildPaginationMeta } from '../../utils/pagination';
 
 export const returnController = {
+  // Locked to the 'returns' folder — customers cannot obtain a signature for
+  // any other folder, and 'returns' always resolves to the private bucket.
+  uploadSignature: asyncHandler(async (req: Request, res: Response) => {
+    const signature = await uploadService.getSignature('returns', req.body.contentType);
+    res.json(ApiResponse.ok(signature));
+  }),
+
   create: asyncHandler(async (req: Request, res: Response) => {
     const record = await returnService.create(req.user!.id, req.body);
     res.status(201).json(ApiResponse.created({ return: record }, 'Return request submitted'));

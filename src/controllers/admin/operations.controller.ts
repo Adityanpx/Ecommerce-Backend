@@ -6,6 +6,7 @@ import { contentService } from '../../services/content.service';
 import { settingsService } from '../../services/settings.service';
 import { dashboardService } from '../../services/dashboard.service';
 import { uploadService } from '../../services/upload.service';
+import { createPresignedRead } from '../../integrations/r2/presignRead';
 import { ApiResponse } from '../../utils/ApiResponse';
 import { asyncHandler } from '../../utils/asyncHandler';
 import { parsePagination, buildPaginationMeta } from '../../utils/pagination';
@@ -52,7 +53,12 @@ export const adminOperationsController = {
 
   getReturn: asyncHandler(async (req: Request, res: Response) => {
     const record = await returnService.getById(req.params.id);
-    res.json(ApiResponse.ok({ return: record }));
+    // `record.images` holds private-bucket keys, not viewable URLs — mint
+    // short-lived presigned GETs so the admin panel can actually render them.
+    // Never cache/store these; they expire in 5 minutes by design.
+    const storedImages = (record.images as unknown as string[] | null) ?? [];
+    const imageViewUrls = await Promise.all(storedImages.map((key) => createPresignedRead(key)));
+    res.json(ApiResponse.ok({ return: record, imageViewUrls }));
   }),
 
   updateReturnStatus: asyncHandler(async (req: Request, res: Response) => {
