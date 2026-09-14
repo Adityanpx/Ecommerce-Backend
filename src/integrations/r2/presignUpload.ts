@@ -64,7 +64,14 @@ export async function createPresignedUpload(
     ContentType: contentType,
   });
 
-  const uploadUrl = await getSignedUrl(r2Client, command, { expiresIn: UPLOAD_URL_TTL_SECONDS });
+  const uploadUrl = await getSignedUrl(r2Client, command, {
+    expiresIn: UPLOAD_URL_TTL_SECONDS,
+    // Without this, the presigner only signs `host` — Content-Type rides
+    // along unenforced, so a client could request a signature for
+    // image/png and then PUT arbitrary bytes as e.g. text/html, which the
+    // public bucket would then serve back with that MIME type.
+    signableHeaders: new Set(['content-type']),
+  });
 
   const publicUrl =
     visibility === 'public' && config.r2.publicBaseUrl
