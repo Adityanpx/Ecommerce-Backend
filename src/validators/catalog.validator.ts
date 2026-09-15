@@ -13,6 +13,24 @@ export const createSportSchema = z.object({
     description: z.string().max(2000).nullable().optional(),
     iconUrl: z.string().url().nullable().optional(),
     bannerUrl: z.string().url().nullable().optional(),
+    heroTitle: z.string().max(255).nullable().optional(),
+    heroSubtitle: z.string().max(255).nullable().optional(),
+    heroDescription: z.string().max(2000).nullable().optional(),
+    heroCtaText: z.string().max(100).nullable().optional(),
+    heroCtaLink: z.string().max(500).nullable().optional(),
+    heroSecondaryCtaText: z.string().max(100).nullable().optional(),
+    heroSecondaryCtaLink: z.string().max(500).nullable().optional(),
+    heroBadges: z.array(z.string().max(50)).default([]),
+    highlights: z
+      .array(
+        z.object({
+          label: z.string().max(50),
+          value: z.string().max(100),
+          description: z.string().max(255).optional(),
+        }),
+      )
+      .nullable()
+      .optional(),
     displayOrder: z.coerce.number().int().min(0).default(0),
     isActive: z.boolean().default(true),
     ...seoFields,
