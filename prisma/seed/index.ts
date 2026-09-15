@@ -3,6 +3,7 @@ import { seedSettings } from './settings.seed';
 import { seedAdmin } from './admin.seed';
 import { seedCatalog } from './catalog.seed';
 import { seedProducts } from './products.seed';
+import { seedHomepage } from './homepage.seed';
 
 const prisma = new PrismaClient();
 
@@ -14,6 +15,7 @@ async function main(): Promise<void> {
   await seedAdmin(prisma);
   await seedCatalog(prisma);
   await seedProducts(prisma);
+  await seedHomepage(prisma);
 
   // eslint-disable-next-line no-console
   console.log('\nSeeding complete.');
