@@ -95,6 +95,19 @@ enum CouponScope {
   PRODUCT
 }
 
+enum BannerPosition {
+  HERO
+  CAROUSEL
+  PROMO_MID
+}
+
+enum CollectionType {
+  CURATED
+  TRENDING
+  BEST_SELLERS
+  NEW_ARRIVALS
+}
+
 // ============================================================
 // AUTHENTICATION
 // ============================================================
@@ -207,6 +220,15 @@ model Sport {
   description     String?  @db.Text
   iconUrl         String?  @map("icon_url") @db.Text
   bannerUrl       String?  @map("banner_url") @db.Text
+  heroTitle            String?  @map("hero_title") @db.VarChar(255)
+  heroSubtitle         String?  @map("hero_subtitle") @db.VarChar(255)
+  heroDescription      String?  @map("hero_description") @db.Text
+  heroCtaText          String?  @map("hero_cta_text") @db.VarChar(100)
+  heroCtaLink          String?  @map("hero_cta_link") @db.Text
+  heroSecondaryCtaText String? @map("hero_secondary_cta_text") @db.VarChar(100)
+  heroSecondaryCtaLink String? @map("hero_secondary_cta_link") @db.Text
+  heroBadges           String[] @default([]) @map("hero_badges")
+  highlights           Json?
   displayOrder    Int      @default(0) @map("display_order")
   isActive        Boolean  @default(true) @map("is_active")
   metaTitle       String?  @map("meta_title") @db.VarChar(255)
@@ -215,6 +237,8 @@ model Sport {
   updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
   subCategories SubCategory[]
+  collections   Collection[]
+  testimonials  Testimonial[]
 
   @@index([slug])
   @@index([isActive, displayOrder])
@@ -299,6 +323,9 @@ model Product {
   images          ProductImage[]
   variants        ProductVariant[]
   attributeValues ProductAttributeValue[]
+  bannerFeatures  Banner[]
+  collectionLinks CollectionProduct[]
+  spotlights      FeaturedSpotlight[]
 
   @@index([slug])
   @@index([subCategoryId])
@@ -667,12 +694,22 @@ model Banner {
   mobileImageUrl String?  @map("mobile_image_url") @db.Text
   publicId       String   @map("public_id") @db.VarChar(255)
   linkUrl        String?  @map("link_url") @db.Text
+  subtitle          String?        @db.VarChar(255)
+  description       String?        @db.Text
+  ctaText           String?        @map("cta_text") @db.VarChar(100)
+  ctaLink           String?        @map("cta_link") @db.Text
+  secondaryCtaText  String?        @map("secondary_cta_text") @db.VarChar(100)
+  secondaryCtaLink  String?        @map("secondary_cta_link") @db.Text
+  position          BannerPosition @default(CAROUSEL)
+  featuredProductId String?        @map("featured_product_id") @db.Uuid
   displayOrder   Int      @default(0) @map("display_order")
   isActive       Boolean  @default(true) @map("is_active")
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  @@index([isActive, displayOrder])
+  featuredProduct Product? @relation(fields: [featuredProductId], references: [id], onDelete: SetNull)
+
+  @@index([position, isActive, displayOrder])
   @@map("banners")
 }
 
@@ -702,4 +739,110 @@ model ContactMessage {
 
   @@index([isRead, createdAt])
   @@map("contact_messages")
+}
+
+// ============================================================
+// HOMEPAGE & MARKETING CONTENT
+// ============================================================
+
+model AnnouncementItem {
+  id           String   @id @default(uuid()) @db.Uuid
+  text         String   @db.VarChar(255)
+  linkUrl      String?  @map("link_url") @db.Text
+  linkText     String?  @map("link_text") @db.VarChar(100)
+  emoji        String?  @db.VarChar(10)
+  isActive     Boolean  @default(true) @map("is_active")
+  displayOrder Int      @default(0) @map("display_order")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([isActive, displayOrder])
+  @@map("announcement_items")
+}
+
+model TrustBadge {
+  id           String   @id @default(uuid()) @db.Uuid
+  icon         String   @db.VarChar(50)
+  title        String   @db.VarChar(120)
+  subtitle     String?  @db.VarChar(255)
+  isActive     Boolean  @default(true) @map("is_active")
+  displayOrder Int      @default(0) @map("display_order")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([isActive, displayOrder])
+  @@map("trust_badges")
+}
+
+model Testimonial {
+  id           String   @id @default(uuid()) @db.Uuid
+  authorName   String   @map("author_name") @db.VarChar(150)
+  authorTitle  String?  @map("author_title") @db.VarChar(150)
+  authorAvatar String?  @map("author_avatar") @db.Text
+  rating       Decimal  @db.Decimal(2, 1)
+  text         String   @db.Text
+  sportId      String?  @map("sport_id") @db.Uuid
+  isActive     Boolean  @default(true) @map("is_active")
+  displayOrder Int      @default(0) @map("display_order")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  sport Sport? @relation(fields: [sportId], references: [id], onDelete: SetNull)
+
+  @@index([isActive, displayOrder])
+  @@index([sportId])
+  @@map("testimonials")
+}
+
+model Collection {
+  id           String         @id @default(uuid()) @db.Uuid
+  name         String         @db.VarChar(150)
+  slug         String         @unique @db.VarChar(170)
+  type         CollectionType @default(CURATED)
+  description  String?        @db.Text
+  sportId      String?        @map("sport_id") @db.Uuid
+  imageUrl     String?        @map("image_url") @db.Text
+  isActive     Boolean        @default(true) @map("is_active")
+  displayOrder Int            @default(0) @map("display_order")
+  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime       @updatedAt @map("updated_at") @db.Timestamptz
+
+  sport    Sport?              @relation(fields: [sportId], references: [id], onDelete: SetNull)
+  products CollectionProduct[]
+
+  @@index([isActive, displayOrder])
+  @@index([sportId])
+  @@index([slug])
+  @@map("collections")
+}
+
+model CollectionProduct {
+  id           String   @id @default(uuid()) @db.Uuid
+  collectionId String   @map("collection_id") @db.Uuid
+  productId    String   @map("product_id") @db.Uuid
+  displayOrder Int      @default(0) @map("display_order")
+
+  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  product    Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([collectionId, productId])
+  @@index([collectionId, displayOrder])
+  @@map("collection_products")
+}
+
+model FeaturedSpotlight {
+  id          String   @id @default(uuid()) @db.Uuid
+  key         String   @unique @db.VarChar(100)
+  title       String?  @db.VarChar(255)
+  subtitle    String?  @db.VarChar(255)
+  description String?  @db.Text
+  productId   String   @map("product_id") @db.Uuid
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([key])
+  @@map("featured_spotlights")
 }
