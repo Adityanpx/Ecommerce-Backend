@@ -21,6 +21,9 @@ export interface CartResponse {
     id: string;
     variantId: string;
     productName: string;
+    productSlug: string;
+    subCategorySlug: string;
+    sportSlug: string;
     variantLabel: string;
     imageUrl: string | null;
     unitPrice: number;
@@ -80,6 +83,9 @@ export const cartService = {
         id: item.id,
         variantId: item.variantId,
         productName: item.variant.product.name,
+        productSlug: item.variant.product.slug,
+        subCategorySlug: item.variant.product.subCategory.slug,
+        sportSlug: item.variant.product.subCategory.sport.slug,
         variantLabel: item.variant.color
           ? `${item.variant.size} / ${item.variant.color}`
           : item.variant.size,

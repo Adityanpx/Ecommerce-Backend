@@ -22,7 +22,14 @@ const cartInclude = {
               shippingCharge: true,
               weightGrams: true,
               subCategoryId: true,
-              subCategory: { select: { id: true, gstRate: true } },
+              subCategory: {
+                select: {
+                  id: true,
+                  slug: true,
+                  gstRate: true,
+                  sport: { select: { slug: true } },
+                },
+              },
               images: {
                 orderBy: [{ isPrimary: 'desc' as const }, { displayOrder: 'asc' as const }],
                 take: 1,

@@ -7,6 +7,9 @@ export interface PricedLine {
   variantId: string;
   productId: string;
   productName: string;
+  productSlug: string;
+  subCategorySlug: string;
+  sportSlug: string;
   variantLabel: string;
   sku: string;
   imageUrl: string | null;
@@ -80,6 +83,9 @@ export const pricingService = {
           variantId: item.variantId,
           productId: product.id,
           productName: product.name,
+          productSlug: product.slug,
+          subCategorySlug: product.subCategory.slug,
+          sportSlug: product.subCategory.sport.slug,
           variantLabel: variantLabel(item.variant.size, item.variant.color),
           sku: item.variant.sku,
           imageUrl: item.variant.imageUrl ?? product.images[0]?.url ?? null,
