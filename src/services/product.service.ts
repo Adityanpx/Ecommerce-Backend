@@ -11,7 +11,7 @@ import { imageRepository } from '../repositories/image.repository';
 import { subCategoryRepository } from '../repositories/subCategory.repository';
 import { attributeRepository } from '../repositories/attribute.repository';
 import { createUniqueSlug } from '../utils/slugify';
-import { generateSku } from '../utils/generators';
+import { generateSku, generateSkuPrefix } from '../utils/generators';
 import { ApiError, FieldError } from '../utils/ApiError';
 import { UPLOAD } from '../config/constants';
 import { deleteAsset } from '../integrations/r2/deleteAsset';
@@ -240,7 +240,7 @@ export const productService = {
     shortDescription?: string | null;
     mrp: number;
     sellingPrice: number;
-    skuPrefix: string;
+    skuPrefix?: string | null;
     hsnCode?: string | null;
     gstRate?: number | null;
     weightGrams?: number | null;
@@ -272,10 +272,13 @@ export const productService = {
     const slug = await createUniqueSlug(input.name, (s) => productRepository.slugExists(s));
     const attributeData = await buildAttributeData(input.subCategoryId, input.attributes);
 
+    // Admin can skip the SKU prefix entirely — derive one from the product name.
+    const skuPrefix = input.skuPrefix?.trim() || generateSkuPrefix(input.name);
+
     // Generate SKUs up front and check them all before opening the transaction.
     const variantData = input.variants.map((v) => ({
       ...v,
-      sku: generateSku(input.skuPrefix, v.size, v.color),
+      sku: generateSku(skuPrefix, v.size, v.color),
     }));
 
     for (const v of variantData) {
@@ -304,7 +307,7 @@ export const productService = {
         shortDescription: input.shortDescription ?? null,
         mrp: new Prisma.Decimal(input.mrp),
         sellingPrice: new Prisma.Decimal(input.sellingPrice),
-        skuPrefix: input.skuPrefix,
+        skuPrefix,
         hsnCode: input.hsnCode ?? null,
         gstRate:
           input.gstRate !== undefined && input.gstRate !== null

@@ -1,6 +1,19 @@
 import crypto from 'crypto';
 import { AUTH } from '../config/constants';
 
+/** Falls back to this when a product name sanitizes to nothing (e.g. all-emoji names). */
+const FALLBACK_SKU_PREFIX = 'PROD';
+
+/** Derives a SKU prefix from a product name when the admin doesn't supply one. */
+export function generateSkuPrefix(name: string): string {
+  return (
+    name
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, '')
+      .slice(0, 20) || FALLBACK_SKU_PREFIX
+  );
+}
+
 /** e.g. ('SNB-BURTON', 'M', 'Black') -> 'SNB-BURTON-M-BLACK' */
 export function generateSku(prefix: string, size: string, color?: string | null): string {
   const parts = [prefix, size];

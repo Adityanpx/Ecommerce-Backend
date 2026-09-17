@@ -45,7 +45,7 @@ export const createProductSchema = z.object({
     shortDescription: z.string().max(500).nullable().optional(),
     mrp: z.coerce.number().min(0, 'MRP cannot be negative'),
     sellingPrice: z.coerce.number().min(0, 'Selling price cannot be negative'),
-    skuPrefix: z.string().min(1, 'SKU prefix is required').max(50),
+    skuPrefix: z.string().max(50).nullable().optional(),
     hsnCode: z.string().max(20).nullable().optional(),
     gstRate: z.coerce.number().min(0).max(100).nullable().optional(),
     weightGrams: z.coerce.number().int().min(0).nullable().optional(),
