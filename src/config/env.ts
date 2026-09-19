@@ -78,6 +78,10 @@ const envSchema = z.object({
   SENTRY_ENVIRONMENT: z.string().default('development'),
   SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(0.1),
 
+  // Meilisearch
+  MEILISEARCH_HOST: z.string().url().optional(),
+  MEILISEARCH_API_KEY: z.string().optional(),
+
   // Logging
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'http', 'debug']).default('info'),
 });
@@ -195,6 +199,12 @@ export const config = {
     environment: env.SENTRY_ENVIRONMENT,
     tracesSampleRate: env.SENTRY_TRACES_SAMPLE_RATE,
     isConfigured: Boolean(env.SENTRY_DSN),
+  },
+
+  meilisearch: {
+    host: env.MEILISEARCH_HOST,
+    apiKey: env.MEILISEARCH_API_KEY,
+    isConfigured: Boolean(env.MEILISEARCH_HOST && env.MEILISEARCH_API_KEY),
   },
 
   logging: {
