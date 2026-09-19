@@ -108,6 +108,15 @@ enum CollectionType {
   NEW_ARRIVALS
 }
 
+enum StockMovementReason {
+  MANUAL_ADJUSTMENT
+  ORDER_PLACED
+  ORDER_CANCELLED
+  RETURN_RECEIVED
+  RESTOCK
+  CORRECTION
+}
+
 // ============================================================
 // AUTHENTICATION
 // ============================================================
@@ -134,6 +143,7 @@ model User {
   refreshTokens       RefreshToken[]
   passwordResetTokens PasswordResetToken[]
   couponUsages        CouponUsage[]
+  wishlist            Wishlist?
 
   @@index([email])
   @@index([phone])
@@ -214,27 +224,27 @@ model PasswordResetToken {
 // ============================================================
 
 model Sport {
-  id              String   @id @default(uuid()) @db.Uuid
-  name            String   @db.VarChar(120)
-  slug            String   @unique @db.VarChar(140)
-  description     String?  @db.Text
-  iconUrl         String?  @map("icon_url") @db.Text
-  bannerUrl       String?  @map("banner_url") @db.Text
+  id                   String   @id @default(uuid()) @db.Uuid
+  name                 String   @db.VarChar(120)
+  slug                 String   @unique @db.VarChar(140)
+  description          String?  @db.Text
+  iconUrl              String?  @map("icon_url") @db.Text
+  bannerUrl            String?  @map("banner_url") @db.Text
   heroTitle            String?  @map("hero_title") @db.VarChar(255)
   heroSubtitle         String?  @map("hero_subtitle") @db.VarChar(255)
   heroDescription      String?  @map("hero_description") @db.Text
   heroCtaText          String?  @map("hero_cta_text") @db.VarChar(100)
   heroCtaLink          String?  @map("hero_cta_link") @db.Text
-  heroSecondaryCtaText String? @map("hero_secondary_cta_text") @db.VarChar(100)
-  heroSecondaryCtaLink String? @map("hero_secondary_cta_link") @db.Text
+  heroSecondaryCtaText String?  @map("hero_secondary_cta_text") @db.VarChar(100)
+  heroSecondaryCtaLink String?  @map("hero_secondary_cta_link") @db.Text
   heroBadges           String[] @default([]) @map("hero_badges")
   highlights           Json?
-  displayOrder    Int      @default(0) @map("display_order")
-  isActive        Boolean  @default(true) @map("is_active")
-  metaTitle       String?  @map("meta_title") @db.VarChar(255)
-  metaDescription String?  @map("meta_description") @db.Text
-  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  displayOrder         Int      @default(0) @map("display_order")
+  isActive             Boolean  @default(true) @map("is_active")
+  metaTitle            String?  @map("meta_title") @db.VarChar(255)
+  metaDescription      String?  @map("meta_description") @db.Text
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
   subCategories SubCategory[]
   collections   Collection[]
@@ -260,14 +270,32 @@ model SubCategory {
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  sport      Sport              @relation(fields: [sportId], references: [id], onDelete: Cascade)
+  sport      Sport               @relation(fields: [sportId], references: [id], onDelete: Cascade)
   attributes CategoryAttribute[]
   products   Product[]
+  sizeChart  SizeChartTemplate?
 
   @@unique([sportId, slug])
   @@index([sportId])
   @@index([slug])
   @@map("sub_categories")
+}
+
+model Brand {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique @db.VarChar(120)
+  slug        String   @unique @db.VarChar(140)
+  logoUrl     String?  @map("logo_url") @db.Text
+  description String?  @db.Text
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  products Product[]
+
+  @@index([slug])
+  @@index([isActive])
+  @@map("brands")
 }
 
 /// Defines one custom field that products in a sub-category will have.
@@ -298,6 +326,7 @@ model CategoryAttribute {
 model Product {
   id               String        @id @default(uuid()) @db.Uuid
   subCategoryId    String        @map("sub_category_id") @db.Uuid
+  brandId          String?       @map("brand_id") @db.Uuid
   name             String        @db.VarChar(255)
   slug             String        @unique @db.VarChar(280)
   brand            String?       @db.VarChar(120)
@@ -305,12 +334,15 @@ model Product {
   shortDescription String?       @map("short_description") @db.VarChar(500)
   mrp              Decimal       @db.Decimal(10, 2)
   sellingPrice     Decimal       @map("selling_price") @db.Decimal(10, 2)
+  costPrice        Decimal?      @map("cost_price") @db.Decimal(10, 2)
   skuPrefix        String        @map("sku_prefix") @db.VarChar(50)
   hsnCode          String?       @map("hsn_code") @db.VarChar(20)
   gstRate          Decimal?      @map("gst_rate") @db.Decimal(5, 2)
   weightGrams      Int?          @map("weight_grams")
   isOversized      Boolean       @default(false) @map("is_oversized")
   shippingCharge   Decimal?      @map("shipping_charge") @db.Decimal(10, 2)
+  packageContents  Json?         @map("package_contents")
+  highlights       Json?
   status           ProductStatus @default(DRAFT)
   orderCount       Int           @default(0) @map("order_count")
   metaTitle        String?       @map("meta_title") @db.VarChar(255)
@@ -320,15 +352,18 @@ model Product {
   updatedAt        DateTime      @updatedAt @map("updated_at") @db.Timestamptz
 
   subCategory     SubCategory             @relation(fields: [subCategoryId], references: [id])
+  brandRef        Brand?                  @relation(fields: [brandId], references: [id], onDelete: SetNull)
   images          ProductImage[]
   variants        ProductVariant[]
   attributeValues ProductAttributeValue[]
   bannerFeatures  Banner[]
   collectionLinks CollectionProduct[]
   spotlights      FeaturedSpotlight[]
+  wishlistItems   WishlistItem[]
 
   @@index([slug])
   @@index([subCategoryId])
+  @@index([brandId])
   @@index([status])
   @@index([brand])
   @@index([sellingPrice])
@@ -364,7 +399,7 @@ model ProductVariant {
   id                String   @id @default(uuid()) @db.Uuid
   productId         String   @map("product_id") @db.Uuid
   sku               String   @unique @db.VarChar(80)
-  size              String   @db.VarChar(50)
+  size              String?  @db.VarChar(50)
   color             String?  @db.VarChar(50)
   colorHex          String?  @map("color_hex") @db.VarChar(7)
   priceOverride     Decimal? @map("price_override") @db.Decimal(10, 2)
@@ -375,9 +410,10 @@ model ProductVariant {
   createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  product    Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
-  cartItems  CartItem[]
-  orderItems OrderItem[]
+  product        Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  cartItems      CartItem[]
+  orderItems     OrderItem[]
+  stockMovements StockMovement[]
 
   @@unique([productId, size, color])
   @@index([productId])
@@ -400,6 +436,104 @@ model ProductImage {
 
   @@index([productId, displayOrder])
   @@map("product_images")
+}
+
+/// Defines the size chart format for a sub-category.
+/// E.g. Cricket Bats might have columns: ["Height (inches)", "Width (mm)", "Weight Range (gm)"]
+/// and rows for each size label: "SH", "Size 6", "Full Size", "Long Handle".
+model SizeChartTemplate {
+  id            String   @id @default(uuid()) @db.Uuid
+  subCategoryId String   @unique @map("sub_category_id") @db.Uuid
+  title         String   @db.VarChar(150)
+  columns       Json
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  subCategory SubCategory      @relation(fields: [subCategoryId], references: [id], onDelete: Cascade)
+  entries     SizeChartEntry[]
+
+  @@map("size_chart_templates")
+}
+
+model SizeChartEntry {
+  id         String @id @default(uuid()) @db.Uuid
+  templateId String @map("template_id") @db.Uuid
+  sizeLabel  String @map("size_label") @db.VarChar(50)
+  values     Json
+  sortOrder  Int    @default(0) @map("sort_order")
+
+  template SizeChartTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@unique([templateId, sizeLabel])
+  @@index([templateId, sortOrder])
+  @@map("size_chart_entries")
+}
+
+/// Audit log for every stock change on a variant.
+model StockMovement {
+  id            String              @id @default(uuid()) @db.Uuid
+  variantId     String              @map("variant_id") @db.Uuid
+  reason        StockMovementReason
+  quantityDelta Int                 @map("quantity_delta")
+  stockBefore   Int                 @map("stock_before")
+  stockAfter    Int                 @map("stock_after")
+  note          String?             @db.Text
+  createdAt     DateTime            @default(now()) @map("created_at") @db.Timestamptz
+
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@index([variantId, createdAt])
+  @@map("stock_movements")
+}
+
+model Wishlist {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @unique @map("user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  user  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items WishlistItem[]
+
+  @@map("wishlists")
+}
+
+model WishlistItem {
+  id         String   @id @default(uuid()) @db.Uuid
+  wishlistId String   @map("wishlist_id") @db.Uuid
+  productId  String   @map("product_id") @db.Uuid
+  addedAt    DateTime @default(now()) @map("added_at") @db.Timestamptz
+
+  wishlist Wishlist @relation(fields: [wishlistId], references: [id], onDelete: Cascade)
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([wishlistId, productId])
+  @@index([wishlistId])
+  @@index([productId])
+  @@map("wishlist_items")
+}
+
+model Promotion {
+  id            String       @id @default(uuid()) @db.Uuid
+  name          String       @db.VarChar(150)
+  slug          String       @unique @db.VarChar(170)
+  description   String?      @db.Text
+  discountType  DiscountType @map("discount_type")
+  discountValue Decimal      @map("discount_value") @db.Decimal(10, 2)
+  /// Which products does this apply to?
+  /// ALL = entire catalog, CATEGORY = specific subcategories, PRODUCT = specific products
+  scope         CouponScope  @default(ALL)
+  /// Array of subCategoryIds or productIds depending on scope
+  scopeIds      Json?        @map("scope_ids")
+  startsAt      DateTime     @map("starts_at") @db.Timestamptz
+  endsAt        DateTime     @map("ends_at") @db.Timestamptz
+  isActive      Boolean      @default(true) @map("is_active")
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime     @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([isActive, startsAt, endsAt])
+  @@index([scope])
+  @@map("promotions")
 }
 
 // ============================================================
@@ -518,13 +652,13 @@ model OrderItem {
 }
 
 model OrderStatusHistory {
-  id                String       @id @default(uuid()) @db.Uuid
-  orderId           String       @map("order_id") @db.Uuid
-  fromStatus        OrderStatus? @map("from_status")
-  toStatus          OrderStatus  @map("to_status")
-  note              String?      @db.Text
-  changedByAdminId  String?      @map("changed_by_admin_id") @db.Uuid
-  createdAt         DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  id               String       @id @default(uuid()) @db.Uuid
+  orderId          String       @map("order_id") @db.Uuid
+  fromStatus       OrderStatus? @map("from_status")
+  toStatus         OrderStatus  @map("to_status")
+  note             String?      @db.Text
+  changedByAdminId String?      @map("changed_by_admin_id") @db.Uuid
+  createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz
 
   order          Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
   changedByAdmin Admin? @relation(fields: [changedByAdminId], references: [id])
@@ -534,19 +668,19 @@ model OrderStatusHistory {
 }
 
 model Payment {
-  id                 String                @id @default(uuid()) @db.Uuid
-  orderId            String                @map("order_id") @db.Uuid
-  razorpayOrderId    String?               @map("razorpay_order_id") @db.VarChar(100)
-  razorpayPaymentId  String?               @unique @map("razorpay_payment_id") @db.VarChar(100)
-  razorpaySignature  String?               @map("razorpay_signature") @db.VarChar(255)
-  amount             Decimal               @db.Decimal(10, 2)
-  currency           String                @default("INR") @db.VarChar(3)
-  method             String?               @db.VarChar(50)
-  status             RazorpayPaymentStatus @default(CREATED)
-  failureReason      String?               @map("failure_reason") @db.Text
-  rawPayload         Json?                 @map("raw_payload")
-  createdAt          DateTime              @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt          DateTime              @updatedAt @map("updated_at") @db.Timestamptz
+  id                String                @id @default(uuid()) @db.Uuid
+  orderId           String                @map("order_id") @db.Uuid
+  razorpayOrderId   String?               @map("razorpay_order_id") @db.VarChar(100)
+  razorpayPaymentId String?               @unique @map("razorpay_payment_id") @db.VarChar(100)
+  razorpaySignature String?               @map("razorpay_signature") @db.VarChar(255)
+  amount            Decimal               @db.Decimal(10, 2)
+  currency          String                @default("INR") @db.VarChar(3)
+  method            String?               @db.VarChar(50)
+  status            RazorpayPaymentStatus @default(CREATED)
+  failureReason     String?               @map("failure_reason") @db.Text
+  rawPayload        Json?                 @map("raw_payload")
+  createdAt         DateTime              @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime              @updatedAt @map("updated_at") @db.Timestamptz
 
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
@@ -688,12 +822,12 @@ model Setting {
 }
 
 model Banner {
-  id             String   @id @default(uuid()) @db.Uuid
-  title          String?  @db.VarChar(150)
-  imageUrl       String   @map("image_url") @db.Text
-  mobileImageUrl String?  @map("mobile_image_url") @db.Text
-  publicId       String   @map("public_id") @db.VarChar(255)
-  linkUrl        String?  @map("link_url") @db.Text
+  id                String         @id @default(uuid()) @db.Uuid
+  title             String?        @db.VarChar(150)
+  imageUrl          String         @map("image_url") @db.Text
+  mobileImageUrl    String?        @map("mobile_image_url") @db.Text
+  publicId          String         @map("public_id") @db.VarChar(255)
+  linkUrl           String?        @map("link_url") @db.Text
   subtitle          String?        @db.VarChar(255)
   description       String?        @db.Text
   ctaText           String?        @map("cta_text") @db.VarChar(100)
@@ -702,10 +836,10 @@ model Banner {
   secondaryCtaLink  String?        @map("secondary_cta_link") @db.Text
   position          BannerPosition @default(CAROUSEL)
   featuredProductId String?        @map("featured_product_id") @db.Uuid
-  displayOrder   Int      @default(0) @map("display_order")
-  isActive       Boolean  @default(true) @map("is_active")
-  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  displayOrder      Int            @default(0) @map("display_order")
+  isActive          Boolean        @default(true) @map("is_active")
+  createdAt         DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime       @updatedAt @map("updated_at") @db.Timestamptz
 
   featuredProduct Product? @relation(fields: [featuredProductId], references: [id], onDelete: SetNull)
 
@@ -817,10 +951,10 @@ model Collection {
 }
 
 model CollectionProduct {
-  id           String   @id @default(uuid()) @db.Uuid
-  collectionId String   @map("collection_id") @db.Uuid
-  productId    String   @map("product_id") @db.Uuid
-  displayOrder Int      @default(0) @map("display_order")
+  id           String @id @default(uuid()) @db.Uuid
+  collectionId String @map("collection_id") @db.Uuid
+  productId    String @map("product_id") @db.Uuid
+  displayOrder Int    @default(0) @map("display_order")
 
   collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
   product    Product    @relation(fields: [productId], references: [id], onDelete: Cascade)

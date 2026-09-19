@@ -1,7 +1,7 @@
 import { addDays } from 'date-fns';
 import { cartRepository, CartWithItems } from '../repositories/cart.repository';
 import { variantRepository } from '../repositories/variant.repository';
-import { pricingService, PriceBreakdown } from './pricing.service';
+import { pricingService, variantLabel, PriceBreakdown } from './pricing.service';
 import { couponService } from './coupon.service';
 import { ApiError } from '../utils/ApiError';
 import { generateGuestToken } from '../utils/generators';
@@ -86,9 +86,7 @@ export const cartService = {
         productSlug: item.variant.product.slug,
         subCategorySlug: item.variant.product.subCategory.slug,
         sportSlug: item.variant.product.subCategory.sport.slug,
-        variantLabel: item.variant.color
-          ? `${item.variant.size} / ${item.variant.color}`
-          : item.variant.size,
+        variantLabel: variantLabel(item.variant.size, item.variant.color),
         imageUrl: item.variant.imageUrl ?? item.variant.product.images[0]?.url ?? null,
         unitPrice: Number(item.variant.priceOverride ?? item.variant.product.sellingPrice),
         inStock: item.variant.stock > 0 && item.variant.isActive,

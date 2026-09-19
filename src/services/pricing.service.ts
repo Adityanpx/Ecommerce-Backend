@@ -51,8 +51,9 @@ function gstRateFor(item: CartWithItems['items'][number], settings: PlatformSett
   return settings.gstDefaultRate;
 }
 
-function variantLabel(size: string, color: string | null): string {
-  return color ? `${size} / ${color}` : size;
+/** Size and colour are both optional; a variant with neither is labelled "Standard". */
+export function variantLabel(size: string | null, color: string | null): string {
+  return [size, color].filter(Boolean).join(' / ') || 'Standard';
 }
 
 export const pricingService = {
