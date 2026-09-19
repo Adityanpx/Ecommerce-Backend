@@ -37,6 +37,11 @@ router.post('/products', validate(createProductSchema), adminProductController.c
 router.get('/products/:id', validate(idParamSchema), adminProductController.getOne);
 router.patch('/products/:id', validate(updateProductSchema), adminProductController.update);
 router.delete('/products/:id', validate(idParamSchema), adminProductController.remove);
+router.get(
+  '/products/:id/stock-history',
+  validate(idParamSchema),
+  adminProductController.stockHistory,
+);
 
 // Variants
 router.post(

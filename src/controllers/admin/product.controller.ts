@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { productService } from '../../services/product.service';
 import { uploadService } from '../../services/upload.service';
+import { stockMovementService } from '../../services/stockMovement.service';
 import { ProductSort } from '../../repositories/product.repository';
 import { ApiResponse } from '../../utils/ApiResponse';
 import { asyncHandler } from '../../utils/asyncHandler';
@@ -83,6 +84,11 @@ export const adminProductController = {
   reorderImages: asyncHandler(async (req: Request, res: Response) => {
     const images = await productService.reorderImages(req.body.items);
     res.json(ApiResponse.ok({ images }, 'Images reordered'));
+  }),
+
+  stockHistory: asyncHandler(async (req: Request, res: Response) => {
+    const movements = await stockMovementService.getProductHistory(req.params.id);
+    res.json(ApiResponse.ok({ movements }));
   }),
 
   uploadSignature: asyncHandler(async (req: Request, res: Response) => {
