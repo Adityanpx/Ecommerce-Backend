@@ -341,8 +341,8 @@ model Product {
   weightGrams      Int?          @map("weight_grams")
   isOversized      Boolean       @default(false) @map("is_oversized")
   shippingCharge   Decimal?      @map("shipping_charge") @db.Decimal(10, 2)
-  packageContents  Json?         @map("package_contents")
-  highlights       Json?
+  packageContents  String[]      @default([]) @map("package_contents")
+  highlights       String[]      @default([])
   status           ProductStatus @default(DRAFT)
   orderCount       Int           @default(0) @map("order_count")
   metaTitle        String?       @map("meta_title") @db.VarChar(255)
