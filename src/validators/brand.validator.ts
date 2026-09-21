@@ -7,6 +7,7 @@ export const createBrandSchema = z.object({
     name: z.string().min(1, 'Name is required').max(120),
     logoUrl: z.string().url().nullable().optional(),
     description: z.string().max(2000).nullable().optional(),
+    isActive: z.boolean().optional(),
   }),
 });
 

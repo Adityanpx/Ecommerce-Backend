@@ -9,6 +9,26 @@ export const brandRepository = {
     });
   },
 
+  /** Admin list: paginated, name search, and a live-product count per brand. */
+  async findMany(skip: number, take: number, search?: string) {
+    const where: Prisma.BrandWhereInput = search
+      ? { name: { contains: search, mode: 'insensitive' } }
+      : {};
+
+    const [items, total] = await prisma.$transaction([
+      prisma.brand.findMany({
+        where,
+        orderBy: { name: 'asc' },
+        skip,
+        take,
+        include: { _count: { select: { products: { where: { deletedAt: null } } } } },
+      }),
+      prisma.brand.count({ where }),
+    ]);
+
+    return { items, total };
+  },
+
   findById(id: string) {
     return prisma.brand.findUnique({ where: { id } });
   },

@@ -7,19 +7,29 @@ export const brandService = {
     return brandRepository.findAll(onlyActive);
   },
 
+  listPaginated(skip: number, take: number, search?: string) {
+    return brandRepository.findMany(skip, take, search);
+  },
+
   async getById(id: string) {
     const brand = await brandRepository.findById(id);
     if (!brand) throw ApiError.notFound('Brand not found');
     return brand;
   },
 
-  async create(input: { name: string; logoUrl?: string | null; description?: string | null }) {
+  async create(input: {
+    name: string;
+    logoUrl?: string | null;
+    description?: string | null;
+    isActive?: boolean;
+  }) {
     const slug = await createUniqueSlug(input.name, (s) => brandRepository.slugExists(s));
     return brandRepository.create({
       name: input.name,
       slug,
       logoUrl: input.logoUrl ?? null,
       description: input.description ?? null,
+      isActive: input.isActive ?? true,
     });
   },
 

@@ -2,11 +2,17 @@ import { Request, Response } from 'express';
 import { brandService } from '../../services/brand.service';
 import { ApiResponse } from '../../utils/ApiResponse';
 import { asyncHandler } from '../../utils/asyncHandler';
+import { parsePagination, buildPaginationMeta } from '../../utils/pagination';
 
 export const adminBrandController = {
-  list: asyncHandler(async (_req: Request, res: Response) => {
-    const brands = await brandService.list();
-    res.json(ApiResponse.ok({ brands }));
+  list: asyncHandler(async (req: Request, res: Response) => {
+    const { page, limit, skip, take } = parsePagination(req.query);
+    const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
+
+    const { items, total } = await brandService.listPaginated(skip, take, search || undefined);
+    res.json(
+      ApiResponse.ok({ brands: items }, 'Success', buildPaginationMeta(total, { page, limit })),
+    );
   }),
 
   getOne: asyncHandler(async (req: Request, res: Response) => {
