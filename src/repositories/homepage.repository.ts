@@ -8,6 +8,16 @@ import {
 } from '@prisma/client';
 import { prisma } from '../config/database';
 
+/**
+ * A product the storefront can actually open: not deleted, and ACTIVE or OUT_OF_STOCK
+ * (the same rule the product page uses). Homepage sections must never link to anything else —
+ * a DRAFT product has no page, so the link would 404.
+ */
+const STOREFRONT_VISIBLE_PRODUCT: Prisma.ProductWhereInput = {
+  deletedAt: null,
+  status: { in: ['ACTIVE', 'OUT_OF_STOCK'] },
+};
+
 export const homepageRepository = {
   // ---------- Announcement Items ----------
 
@@ -106,7 +116,12 @@ export const homepageRepository = {
       where,
       orderBy: { displayOrder: 'asc' },
       include: {
-        _count: { select: { products: true } },
+        // Admin (activeOnly = false) sees every linked product; the storefront only live ones.
+        _count: {
+          select: {
+            products: activeOnly ? { where: { product: STOREFRONT_VISIBLE_PRODUCT } } : true,
+          },
+        },
         sport: { select: { id: true, name: true, slug: true } },
       },
     });
@@ -140,6 +155,7 @@ export const homepageRepository = {
       where: { slug },
       include: {
         products: {
+          where: { product: STOREFRONT_VISIBLE_PRODUCT },
           orderBy: { displayOrder: 'asc' },
           include: {
             product: {

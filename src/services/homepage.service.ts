@@ -129,8 +129,17 @@ export const homepageService = {
     return homepageRepository.findSpotlights(activeOnly);
   },
 
-  getSpotlight(key: string) {
-    return homepageRepository.findSpotlightByKey(key);
+  /**
+   * Public spotlight. Returns null (so the section hides) when the spotlight is switched off
+   * or its product is not live — showing a product that has no page would 404 on click.
+   */
+  async getSpotlight(key: string) {
+    const spotlight = await homepageRepository.findSpotlightByKey(key);
+    if (!spotlight || !spotlight.isActive) return null;
+
+    const { product } = spotlight;
+    const live = product.deletedAt === null && ['ACTIVE', 'OUT_OF_STOCK'].includes(product.status);
+    return live ? spotlight : null;
   },
 
   upsertSpotlight(input: {
