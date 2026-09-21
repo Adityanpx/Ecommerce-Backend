@@ -15,11 +15,13 @@ import { generateSku, generateSkuPrefix } from '../utils/generators';
 import { ApiError, FieldError } from '../utils/ApiError';
 import { UPLOAD } from '../config/constants';
 import { deleteAsset } from '../integrations/r2/deleteAsset';
+import { resolveForProduct } from '../config/sizeCharts/resolver';
+import { toDTO } from '../config/sizeCharts/types';
 
 type AttributeInputValue = string | number | boolean | string[] | null;
 
 interface VariantInput {
-  size: string;
+  size?: string | null;
   color?: string | null;
   colorHex?: string | null;
   priceOverride?: number | null;
@@ -135,10 +137,13 @@ async function buildAttributeData(
 function assertUniqueVariants(variants: VariantInput[]): void {
   const seen = new Set<string>();
   for (const v of variants) {
-    const key = `${v.size.toLowerCase()}|${(v.color ?? '').toLowerCase()}`;
+    const key = `${(v.size ?? '').toLowerCase()}|${(v.color ?? '').toLowerCase()}`;
     if (seen.has(key)) {
+      const parts = [v.size && `size "${v.size}"`, v.color && `colour "${v.color}"`].filter(
+        Boolean,
+      );
       throw ApiError.conflict(
-        `Duplicate variant: size "${v.size}"${v.color ? ` / colour "${v.color}"` : ''}`,
+        `Duplicate variant: ${parts.length > 0 ? parts.join(' / ') : 'a one-size variant already exists'}`,
       );
     }
     seen.add(key);
@@ -204,7 +209,17 @@ export const productService = {
   async getBySlug(slug: string) {
     const product = await productRepository.findBySlug(slug, true);
     if (!product) throw ApiError.notFound('Product not found');
-    return product;
+
+    // The size guide is derived, not stored: it follows the product's name and category
+    // unless the admin pinned or disabled it via sizeChartKey.
+    const { chart } = resolveForProduct({
+      name: product.name,
+      subCategoryName: product.subCategory.name,
+      sportName: product.subCategory.sport.name,
+      sizeChartKey: product.sizeChartKey,
+    });
+
+    return { ...product, sizeChart: chart ? toDTO(chart) : null };
   },
 
   async getByIdForAdmin(id: string) {
@@ -246,6 +261,9 @@ export const productService = {
     weightGrams?: number | null;
     isOversized?: boolean;
     shippingCharge?: number | null;
+    highlights?: string[];
+    packageContents?: string[];
+    sizeChartKey?: string | null;
     status?: ProductStatus;
     metaTitle?: string | null;
     metaDescription?: string | null;
@@ -319,6 +337,9 @@ export const productService = {
           input.shippingCharge !== undefined && input.shippingCharge !== null
             ? new Prisma.Decimal(input.shippingCharge)
             : null,
+        highlights: input.highlights ?? [],
+        packageContents: input.packageContents ?? [],
+        sizeChartKey: input.sizeChartKey ?? null,
         status: input.status ?? 'DRAFT',
         metaTitle: input.metaTitle ?? null,
         metaDescription: input.metaDescription ?? null,
@@ -326,7 +347,7 @@ export const productService = {
         variants: {
           create: variantData.map((v) => ({
             sku: v.sku,
-            size: v.size,
+            size: v.size ?? null,
             color: v.color ?? null,
             colorHex: v.colorHex ?? null,
             priceOverride:
@@ -432,7 +453,7 @@ export const productService = {
     return variantRepository.create({
       productId,
       sku,
-      size: input.size,
+      size: input.size ?? null,
       color: input.color ?? null,
       colorHex: input.colorHex ?? null,
       priceOverride:

@@ -15,8 +15,13 @@ export function generateSkuPrefix(name: string): string {
 }
 
 /** e.g. ('SNB-BURTON', 'M', 'Black') -> 'SNB-BURTON-M-BLACK' */
-export function generateSku(prefix: string, size: string, color?: string | null): string {
-  const parts = [prefix, size];
+export function generateSku(
+  prefix: string,
+  size: string | null | undefined,
+  color?: string | null,
+): string {
+  const parts = [prefix];
+  if (size) parts.push(size);
   if (color) parts.push(color);
   return parts
     .map((p) => p.toUpperCase().replace(/[^A-Z0-9]/g, ''))

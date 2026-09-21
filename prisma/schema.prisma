@@ -343,6 +343,8 @@ model Product {
   shippingCharge   Decimal?      @map("shipping_charge") @db.Decimal(10, 2)
   packageContents  String[]      @default([]) @map("package_contents")
   highlights       String[]      @default([])
+  /// null = auto-detect the size chart, 'none' = no size guide, otherwise a built-in chart key.
+  sizeChartKey     String?       @map("size_chart_key") @db.VarChar(60)
   status           ProductStatus @default(DRAFT)
   orderCount       Int           @default(0) @map("order_count")
   metaTitle        String?       @map("meta_title") @db.VarChar(255)

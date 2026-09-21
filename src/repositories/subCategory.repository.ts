@@ -30,6 +30,13 @@ export const subCategoryRepository = {
     return prisma.subCategory.findUnique({ where: { id } });
   },
 
+  findByIdWithSport(id: string) {
+    return prisma.subCategory.findUnique({
+      where: { id },
+      include: { sport: { select: { id: true, name: true } } },
+    });
+  },
+
   slugExistsInSport(sportId: string, slug: string): Promise<boolean> {
     return prisma.subCategory
       .findUnique({ where: { sportId_slug: { sportId, slug } } })

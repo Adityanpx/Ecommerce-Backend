@@ -14,7 +14,6 @@ router.get('/products/:slug', validate(slugParamSchema), catalogController.getPr
 router.get('/products/:id/stock', validate(idParamSchema), catalogController.getProductStock);
 
 router.get('/brands', catalogController.listBrands);
-router.get('/size-charts/:subCategoryId', catalogController.getSizeChart);
 
 router.get('/search', catalogController.search);
 

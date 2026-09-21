@@ -2,7 +2,6 @@ import { Request, Response } from 'express';
 import { catalogService } from '../../services/catalog.service';
 import { productService } from '../../services/product.service';
 import { brandService } from '../../services/brand.service';
-import { sizeChartService } from '../../services/sizeChart.service';
 import { subCategoryRepository } from '../../repositories/subCategory.repository';
 import { sportRepository } from '../../repositories/sport.repository';
 import { ProductSort } from '../../repositories/product.repository';
@@ -93,11 +92,6 @@ export const catalogController = {
   listBrands: asyncHandler(async (_req: Request, res: Response) => {
     const brands = await brandService.list(true); // only active
     res.json(ApiResponse.ok({ brands }));
-  }),
-
-  getSizeChart: asyncHandler(async (req: Request, res: Response) => {
-    const sizeChart = await sizeChartService.getBySubCategory(req.params.subCategoryId);
-    res.json(ApiResponse.ok({ sizeChart }));
   }),
 
   search: asyncHandler(async (req: Request, res: Response) => {

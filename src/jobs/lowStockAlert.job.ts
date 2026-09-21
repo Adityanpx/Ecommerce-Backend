@@ -11,7 +11,7 @@ export async function lowStockAlert(): Promise<void> {
       .map(
         (v) =>
           `<tr><td style="padding:4px 12px 4px 0;">${v.productName}</td>
-           <td style="padding:4px 12px 4px 0;">${v.size}${v.color ? ` / ${v.color}` : ''}</td>
+           <td style="padding:4px 12px 4px 0;">${[v.size, v.color].filter(Boolean).join(' / ') || 'One size'}</td>
            <td style="padding:4px 0;"><strong>${v.stock}</strong> left</td></tr>`,
       )
       .join('');

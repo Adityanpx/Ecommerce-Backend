@@ -1,9 +1,16 @@
 import { z } from 'zod';
+import { isValidChartKey } from '../config/sizeCharts';
 
 const uuid = z.string().uuid('Invalid id');
 
 const variantInput = z.object({
-  size: z.string().min(1, 'Size is required').max(50),
+  // Optional: one-size products (bags, balls) have no size. Blank normalises to null.
+  size: z
+    .string()
+    .max(50)
+    .nullable()
+    .optional()
+    .transform((value) => value?.trim() || null),
   color: z.string().max(50).nullable().optional(),
   colorHex: z
     .string()
@@ -51,6 +58,15 @@ export const createProductSchema = z.object({
     weightGrams: z.coerce.number().int().min(0).nullable().optional(),
     isOversized: z.boolean().default(false),
     shippingCharge: z.coerce.number().min(0).nullable().optional(),
+    highlights: z.array(z.string().trim().min(1).max(200)).max(20).default([]),
+    packageContents: z.array(z.string().trim().min(1).max(200)).max(20).default([]),
+    /** null = auto-detect, 'none' = no size guide, otherwise a built-in chart key. */
+    sizeChartKey: z
+      .string()
+      .max(60)
+      .refine(isValidChartKey, 'Unknown size chart')
+      .nullable()
+      .optional(),
     status: z.enum(['DRAFT', 'ACTIVE', 'OUT_OF_STOCK']).default('DRAFT'),
     metaTitle: z.string().max(255).nullable().optional(),
     metaDescription: z.string().max(500).nullable().optional(),

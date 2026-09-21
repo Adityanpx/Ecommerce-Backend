@@ -97,7 +97,7 @@ export const dashboardRepository = {
       {
         id: string;
         sku: string;
-        size: string;
+        size: string | null;
         color: string | null;
         stock: number;
         threshold: number;
