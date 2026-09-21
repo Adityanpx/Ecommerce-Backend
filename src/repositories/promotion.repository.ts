@@ -9,6 +9,20 @@ export const promotionRepository = {
     });
   },
 
+  /** Admin list: paginated with optional name search, newest first. */
+  async findMany(skip: number, take: number, search?: string) {
+    const where: Prisma.PromotionWhereInput = search
+      ? { name: { contains: search, mode: 'insensitive' } }
+      : {};
+
+    const [items, total] = await prisma.$transaction([
+      prisma.promotion.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take }),
+      prisma.promotion.count({ where }),
+    ]);
+
+    return { items, total };
+  },
+
   findById(id: string) {
     return prisma.promotion.findUnique({ where: { id } });
   },

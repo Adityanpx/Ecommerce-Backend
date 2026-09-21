@@ -23,9 +23,36 @@ export interface AppliedPromotion {
   promotionalPrice: number;
 }
 
+/**
+ * Cross-field rules. Run against the *merged* result on update, because a
+ * partial PATCH (e.g. only endsAt) can only be judged against stored values.
+ */
+function assertPromotionRules(rules: {
+  discountType: 'PERCENTAGE' | 'FLAT';
+  discountValue: number;
+  scope: 'ALL' | 'CATEGORY' | 'PRODUCT';
+  scopeIds: string[];
+  startsAt: Date;
+  endsAt: Date;
+}) {
+  if (rules.endsAt <= rules.startsAt) {
+    throw ApiError.badRequest('End date must be after start date');
+  }
+  if (rules.discountType === 'PERCENTAGE' && rules.discountValue > 100) {
+    throw ApiError.badRequest('A percentage discount cannot exceed 100');
+  }
+  if (rules.scope !== 'ALL' && rules.scopeIds.length === 0) {
+    throw ApiError.badRequest('Select at least one category or product for this scope');
+  }
+}
+
 export const promotionService = {
   list(includeInactive = false) {
     return promotionRepository.findAll(includeInactive);
+  },
+
+  listPaginated(skip: number, take: number, search?: string) {
+    return promotionRepository.findMany(skip, take, search);
   },
 
   async getById(id: string) {
@@ -35,9 +62,14 @@ export const promotionService = {
   },
 
   async create(input: PromotionInput) {
-    if (new Date(input.endsAt) <= new Date(input.startsAt)) {
-      throw ApiError.badRequest('End date must be after start date');
-    }
+    assertPromotionRules({
+      discountType: input.discountType,
+      discountValue: input.discountValue,
+      scope: input.scope,
+      scopeIds: input.scopeIds ?? [],
+      startsAt: new Date(input.startsAt),
+      endsAt: new Date(input.endsAt),
+    });
 
     const slug = await createUniqueSlug(input.name, (s) => promotionRepository.slugExists(s));
 
@@ -58,6 +90,15 @@ export const promotionService = {
   async update(id: string, input: Partial<PromotionInput>) {
     const existing = await promotionRepository.findById(id);
     if (!existing) throw ApiError.notFound('Promotion not found');
+
+    assertPromotionRules({
+      discountType: input.discountType ?? existing.discountType,
+      discountValue: input.discountValue ?? Number(existing.discountValue),
+      scope: input.scope ?? existing.scope,
+      scopeIds: input.scopeIds ?? (existing.scopeIds as string[] | null) ?? [],
+      startsAt: input.startsAt !== undefined ? new Date(input.startsAt) : existing.startsAt,
+      endsAt: input.endsAt !== undefined ? new Date(input.endsAt) : existing.endsAt,
+    });
 
     const data: Record<string, unknown> = {};
 

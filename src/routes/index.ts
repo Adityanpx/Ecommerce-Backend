@@ -15,6 +15,9 @@ import adminProductRoutes from './admin/product.routes';
 import adminOrderRoutes from './admin/order.routes';
 import adminOperationsRoutes from './admin/operations.routes';
 import adminHomepageRoutes from './admin/homepage.routes';
+import adminBrandRoutes from './admin/brand.routes';
+import adminSizeChartRoutes from './admin/sizeChart.routes';
+import adminPromotionRoutes from './admin/promotion.routes';
 
 import razorpayWebhookRoutes from './webhooks/razorpay.routes';
 
@@ -41,6 +44,9 @@ router.use('/admin', adminProductRoutes);
 router.use('/admin', adminOrderRoutes);
 router.use('/admin', adminOperationsRoutes);
 router.use('/admin', adminHomepageRoutes);
+router.use('/admin', adminBrandRoutes);
+router.use('/admin', adminSizeChartRoutes);
+router.use('/admin', adminPromotionRoutes);
 
 // ---------- Webhooks ----------
 router.use('/webhooks/razorpay', razorpayWebhookRoutes);
