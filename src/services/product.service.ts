@@ -7,6 +7,8 @@ import {
   AttributeFilter,
 } from '../repositories/product.repository';
 import { variantRepository } from '../repositories/variant.repository';
+import { brandRepository } from '../repositories/brand.repository';
+import { resolveBrandChoice } from './brandResolution';
 import { imageRepository } from '../repositories/image.repository';
 import { subCategoryRepository } from '../repositories/subCategory.repository';
 import { attributeRepository } from '../repositories/attribute.repository';
@@ -134,6 +136,11 @@ async function buildAttributeData(
     });
 }
 
+/** Brand rule lives in brandResolution.ts (injectable, unit-tested); this binds it to the database. */
+export function resolveProductBrand(input: { brandId?: string | null; brand?: string | null }) {
+  return resolveBrandChoice(input, brandRepository);
+}
+
 function assertUniqueVariants(variants: VariantInput[]): void {
   const seen = new Set<string>();
   for (const v of variants) {
@@ -251,6 +258,7 @@ export const productService = {
     subCategoryId: string;
     name: string;
     brand?: string | null;
+    brandId?: string | null;
     description?: string | null;
     shortDescription?: string | null;
     mrp: number;
@@ -287,6 +295,8 @@ export const productService = {
       throw ApiError.badRequest(`A product can have at most ${UPLOAD.MAX_PRODUCT_IMAGES} images`);
     }
 
+    const brandResolution = await resolveProductBrand(input);
+
     const slug = await createUniqueSlug(input.name, (s) => productRepository.slugExists(s));
     const attributeData = await buildAttributeData(input.subCategoryId, input.attributes);
 
@@ -320,7 +330,10 @@ export const productService = {
         subCategory: { connect: { id: input.subCategoryId } },
         name: input.name,
         slug,
-        brand: input.brand ?? null,
+        brand: brandResolution?.brand ?? null,
+        ...(brandResolution?.brandId
+          ? { brandRef: { connect: { id: brandResolution.brandId } } }
+          : {}),
         description: input.description ?? null,
         shortDescription: input.shortDescription ?? null,
         mrp: new Prisma.Decimal(input.mrp),
@@ -387,8 +400,20 @@ export const productService = {
       ]);
     }
 
-    const { attributes, ...scalarInput } = input;
+    // brandId is not a scalar on the checked update input — it is applied via the brandRef relation.
+    const { attributes, brandId: _brandId, ...scalarInput } = input;
     const data: Prisma.ProductUpdateInput = { ...scalarInput };
+
+    const brandResolution = await resolveProductBrand({
+      brandId: input.brandId as string | null | undefined,
+      brand: input.brand as string | null | undefined,
+    });
+    if (brandResolution) {
+      data.brand = brandResolution.brand;
+      data.brandRef = brandResolution.brandId
+        ? { connect: { id: brandResolution.brandId } }
+        : { disconnect: true };
+    }
 
     if (typeof input.name === 'string' && input.name !== existing.name) {
       data.slug = await createUniqueSlug(input.name, async (s) =>

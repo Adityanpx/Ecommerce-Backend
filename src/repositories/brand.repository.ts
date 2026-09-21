@@ -33,6 +33,16 @@ export const brandRepository = {
     return prisma.brand.findUnique({ where: { id } });
   },
 
+  /** Case-insensitive lookup — links a free-text product brand to its Brand record. */
+  findByName(name: string) {
+    return prisma.brand.findFirst({ where: { name: { equals: name, mode: 'insensitive' } } });
+  },
+
+  /** Product.brand is a denormalised copy of the name (used by search and filters). */
+  syncProductBrandName(brandId: string, name: string) {
+    return prisma.product.updateMany({ where: { brandId }, data: { brand: name } });
+  },
+
   findBySlug(slug: string) {
     return prisma.brand.findUnique({ where: { slug } });
   },

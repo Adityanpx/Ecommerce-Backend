@@ -53,7 +53,13 @@ export const brandService = {
       );
     }
 
-    return brandRepository.update(id, data);
+    const updated = await brandRepository.update(id, data);
+
+    if (input.name && input.name !== existing.name) {
+      await brandRepository.syncProductBrandName(id, input.name);
+    }
+
+    return updated;
   },
 
   async delete(id: string) {

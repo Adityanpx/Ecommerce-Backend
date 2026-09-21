@@ -48,6 +48,8 @@ export const createProductSchema = z.object({
     subCategoryId: uuid,
     name: z.string().min(1, 'Name is required').max(255),
     brand: z.string().max(120).nullable().optional(),
+    /** Preferred: link to a Brand record. `brand` (free text) is kept for legacy clients. */
+    brandId: uuid.nullable().optional(),
     description: z.string().max(20000).nullable().optional(),
     shortDescription: z.string().max(500).nullable().optional(),
     mrp: z.coerce.number().min(0, 'MRP cannot be negative'),
