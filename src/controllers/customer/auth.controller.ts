@@ -52,8 +52,14 @@ export const authController = {
   }),
 
   sendOtp: asyncHandler(async (req: Request, res: Response) => {
-    await authService.sendOtp(req.body.phone);
-    res.json(ApiResponse.ok({ sent: true }, 'OTP sent successfully'));
+    const debugCode = await authService.sendOtp(req.body.phone);
+    // debugCode is only ever set when config.otpDebugMode is on (testing only — see env.ts).
+    res.json(
+      ApiResponse.ok(
+        { sent: true, ...(debugCode ? { otp: debugCode } : {}) },
+        'OTP sent successfully',
+      ),
+    );
   }),
 
   verifyOtp: asyncHandler(async (req: Request, res: Response) => {

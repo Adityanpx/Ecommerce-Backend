@@ -38,6 +38,9 @@ const envSchema = z.object({
   ADMIN_APP_URL: z.string().url().default('http://localhost:5173'),
   CORS_ORIGINS: z.string().default('http://localhost:3000,http://localhost:5173'),
 
+  // Testing only — see the warning on `config.otpDebugMode` below.
+  OTP_DEBUG_MODE: z.string().optional(),
+
   // Cloudinary (optional in dev — image upload simply won't work without it)
   CLOUDINARY_CLOUD_NAME: z.string().optional(),
   CLOUDINARY_API_KEY: z.string().optional(),
@@ -107,6 +110,9 @@ export const config = {
   isProduction: env.NODE_ENV === 'production',
   isDevelopment: env.NODE_ENV === 'development',
   isTest: env.NODE_ENV === 'test',
+  // Testing helper — see the long comment on sendOtp() in auth.service.ts before enabling
+  // this on any deployment that isn't private to you.
+  otpDebugMode: env.OTP_DEBUG_MODE === 'true',
   port: env.PORT,
   apiVersion: env.API_VERSION,
   apiPrefix: `/api/${env.API_VERSION}`,

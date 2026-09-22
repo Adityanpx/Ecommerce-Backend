@@ -153,7 +153,13 @@ export const authService = {
     return { user: toPublicUser(user), ...tokens };
   },
 
-  async sendOtp(phone: string): Promise<void> {
+  /**
+   * Returns the OTP only in test mode (config.otpDebugMode) — see the warning on that flag
+   * in config/env.ts. In every other configuration this returns undefined and the code goes
+   * out over SMS as usual; the caller (the controller) must not put a returned value in the
+   * response unless the flag is set.
+   */
+  async sendOtp(phone: string): Promise<string | undefined> {
     const user = await userRepository.findByPhone(phone);
     const purpose = user ? 'LOGIN' : 'SIGNUP';
 
@@ -168,17 +174,25 @@ export const authService = {
       expiresAt: addMinutes(new Date(), AUTH.OTP_EXPIRY_MINUTES),
     });
 
+    if (config.otpDebugMode) {
+      // Skip the SMS provider entirely — no point spending SMS credits while testing.
+      logger.warn(`OTP_DEBUG_MODE OTP for ${phone}: ${code}`);
+      return code;
+    }
+
     const sent = await sendOtpSms(phone, code);
 
     if (!sent && config.isDevelopment) {
       // Local development without MSG91 credentials — log the code so the flow is testable.
       logger.warn(`DEV OTP for ${phone}: ${code}`);
-      return;
+      return undefined;
     }
 
     if (!sent) {
       throw ApiError.internal('Could not send OTP. Please try again.');
     }
+
+    return undefined;
   },
 
   async verifyOtp(
