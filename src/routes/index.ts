@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import healthRoutes from './health.routes';
+import { stripPrivateFields } from '../middlewares/stripPrivateFields';
 
 import customerAuthRoutes from './customer/auth.routes';
 import customerCatalogRoutes from './customer/catalog.routes';
@@ -8,6 +9,7 @@ import customerOrderRoutes from './customer/order.routes';
 import customerReturnRoutes from './customer/return.routes';
 import customerContentRoutes from './customer/content.routes';
 import customerHomepageRoutes from './customer/homepage.routes';
+import customerWishlistRoutes from './customer/wishlist.routes';
 
 import adminAuthRoutes from './admin/auth.routes';
 import adminCatalogRoutes from './admin/catalog.routes';
@@ -18,10 +20,14 @@ import adminHomepageRoutes from './admin/homepage.routes';
 import adminBrandRoutes from './admin/brand.routes';
 import adminSizeChartRoutes from './admin/sizeChart.routes';
 import adminPromotionRoutes from './admin/promotion.routes';
+import adminCatalogToolsRoutes from './admin/catalogTools.routes';
 
 import razorpayWebhookRoutes from './webhooks/razorpay.routes';
 
 const router = Router();
+
+// Removes costPrice (and other internal fields) from every non-admin response.
+router.use(stripPrivateFields);
 
 router.use('/health', healthRoutes);
 
@@ -31,6 +37,8 @@ router.use('/cart', customerCartRoutes);
 router.use('/returns', customerReturnRoutes);
 router.use('/content', customerContentRoutes);
 router.use('/homepage', customerHomepageRoutes);
+// Was defined but never mounted — every wishlist call used to 404.
+router.use('/wishlist', customerWishlistRoutes);
 
 // Mounted at root — these routers define their own path prefixes
 // (/sports, /products, /orders, /addresses, /checkout, /payments).
@@ -47,6 +55,7 @@ router.use('/admin', adminHomepageRoutes);
 router.use('/admin', adminBrandRoutes);
 router.use('/admin', adminSizeChartRoutes);
 router.use('/admin', adminPromotionRoutes);
+router.use('/admin', adminCatalogToolsRoutes);
 
 // ---------- Webhooks ----------
 router.use('/webhooks/razorpay', razorpayWebhookRoutes);
