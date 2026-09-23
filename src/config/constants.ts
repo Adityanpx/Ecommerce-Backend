@@ -26,7 +26,39 @@ export const ORDER = {
 export const UPLOAD = {
   MAX_FILE_SIZE_MB: 5,
   ALLOWED_IMAGE_TYPES: ['image/jpeg', 'image/png', 'image/webp'] as const,
+  /** Shared (colour-less) images per product. */
   MAX_PRODUCT_IMAGES: 10,
+  /** Photos per colour. Total per product = shared + (colours x this). */
+  MAX_IMAGES_PER_COLOR: 12,
+  /** Hard floor — anything smaller is rejected outright. */
+  MIN_IMAGE_EDGE_PX: 500,
+  /** Below this the admin sees a "low resolution" warning (zoom needs ~1200px+). */
+  RECOMMENDED_IMAGE_EDGE_PX: 1200,
+  MAX_VIDEO_SIZE_MB: 50,
+  ALLOWED_VIDEO_TYPES: ['video/mp4', 'video/webm'] as const,
+  MAX_AVATAR_SIZE_MB: 2,
+} as const;
+
+export const CATALOG = {
+  MAX_COLORS_PER_PRODUCT: 20,
+  MAX_TAGS: 10,
+  MAX_SEARCH_KEYWORDS: 30,
+  MAX_RELATED_PRODUCTS: 12,
+  MAX_ORDER_QUANTITY_CEILING: 100,
+  /** Suggestions shown in the admin tag picker. Tags are free text; these are just shortcuts. */
+  TAG_SUGGESTIONS: [
+    'New',
+    'Bestseller',
+    'Limited',
+    'Pro',
+    'Sale',
+    'Exclusive',
+    'Trending',
+  ] as const,
+  /** How many drafts one admin can keep before the oldest must be deleted. */
+  MAX_DRAFTS_PER_ADMIN: 50,
+  /** Max JSON size of one autosaved draft. */
+  MAX_DRAFT_BYTES: 512 * 1024,
 } as const;
 
 export const RATE_LIMIT = {
@@ -36,6 +68,7 @@ export const RATE_LIMIT = {
   FORGOT_PASSWORD: { windowMs: 60 * 60 * 1000, max: 3 },
   CONTACT_FORM: { windowMs: 60 * 60 * 1000, max: 3 },
   ORDER_CREATE: { windowMs: 60 * 60 * 1000, max: 10 },
+  AVATAR_UPLOAD: { windowMs: 60 * 60 * 1000, max: 10 },
   AUTHENTICATED: { windowMs: 15 * 60 * 1000, max: 300 },
   PUBLIC: { windowMs: 15 * 60 * 1000, max: 600 },
 } as const;
