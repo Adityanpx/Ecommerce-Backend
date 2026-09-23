@@ -115,6 +115,13 @@ enum StockMovementReason {
   RETURN_RECEIVED
   RESTOCK
   CORRECTION
+  DAMAGED
+  INITIAL_STOCK
+}
+
+enum ProductRelationType {
+  RELATED
+  BOUGHT_TOGETHER
 }
 
 // ============================================================
@@ -164,6 +171,7 @@ model Admin {
 
   refreshTokens      RefreshToken[]
   orderStatusChanges OrderStatusHistory[]
+  productDrafts      ProductDraft[]
 
   @@index([email])
   @@map("admins")
@@ -270,10 +278,11 @@ model SubCategory {
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  sport      Sport               @relation(fields: [sportId], references: [id], onDelete: Cascade)
-  attributes CategoryAttribute[]
-  products   Product[]
-  sizeChart  SizeChartTemplate?
+  sport       Sport               @relation(fields: [sportId], references: [id], onDelete: Cascade)
+  attributes  CategoryAttribute[]
+  products    Product[]
+  sizeChart   SizeChartTemplate?
+  sizePresets SizePreset[]
 
   @@unique([sportId, slug])
   @@index([sportId])
@@ -324,34 +333,55 @@ model CategoryAttribute {
 }
 
 model Product {
-  id               String        @id @default(uuid()) @db.Uuid
-  subCategoryId    String        @map("sub_category_id") @db.Uuid
-  brandId          String?       @map("brand_id") @db.Uuid
-  name             String        @db.VarChar(255)
-  slug             String        @unique @db.VarChar(280)
-  brand            String?       @db.VarChar(120)
-  description      String?       @db.Text
-  shortDescription String?       @map("short_description") @db.VarChar(500)
-  mrp              Decimal       @db.Decimal(10, 2)
-  sellingPrice     Decimal       @map("selling_price") @db.Decimal(10, 2)
-  costPrice        Decimal?      @map("cost_price") @db.Decimal(10, 2)
-  skuPrefix        String        @map("sku_prefix") @db.VarChar(50)
-  hsnCode          String?       @map("hsn_code") @db.VarChar(20)
-  gstRate          Decimal?      @map("gst_rate") @db.Decimal(5, 2)
-  weightGrams      Int?          @map("weight_grams")
-  isOversized      Boolean       @default(false) @map("is_oversized")
-  shippingCharge   Decimal?      @map("shipping_charge") @db.Decimal(10, 2)
-  packageContents  String[]      @default([]) @map("package_contents")
-  highlights       String[]      @default([])
+  id                  String        @id @default(uuid()) @db.Uuid
+  subCategoryId       String        @map("sub_category_id") @db.Uuid
+  brandId             String?       @map("brand_id") @db.Uuid
+  name                String        @db.VarChar(255)
+  slug                String        @unique @db.VarChar(280)
+  brand               String?       @db.VarChar(120)
+  description         String?       @db.Text
+  shortDescription    String?       @map("short_description") @db.VarChar(500)
+  mrp                 Decimal       @db.Decimal(10, 2)
+  sellingPrice        Decimal       @map("selling_price") @db.Decimal(10, 2)
+  costPrice           Decimal?      @map("cost_price") @db.Decimal(10, 2)
+  skuPrefix           String        @map("sku_prefix") @db.VarChar(50)
+  hsnCode             String?       @map("hsn_code") @db.VarChar(20)
+  gstRate             Decimal?      @map("gst_rate") @db.Decimal(5, 2)
+  weightGrams         Int?          @map("weight_grams")
+  isOversized         Boolean       @default(false) @map("is_oversized")
+  shippingCharge      Decimal?      @map("shipping_charge") @db.Decimal(10, 2)
+  packageContents     String[]      @default([]) @map("package_contents")
+  highlights          String[]      @default([])
   /// null = auto-detect the size chart, 'none' = no size guide, otherwise a built-in chart key.
-  sizeChartKey     String?       @map("size_chart_key") @db.VarChar(60)
-  status           ProductStatus @default(DRAFT)
-  orderCount       Int           @default(0) @map("order_count")
-  metaTitle        String?       @map("meta_title") @db.VarChar(255)
-  metaDescription  String?       @map("meta_description") @db.Text
-  deletedAt        DateTime?     @map("deleted_at") @db.Timestamptz
-  createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt        DateTime      @updatedAt @map("updated_at") @db.Timestamptz
+  sizeChartKey        String?       @map("size_chart_key") @db.VarChar(60)
+  /// Label shown next to the size picker, e.g. "EU MEN", "UK", "Inches". Free text.
+  sizeSystem          String?       @map("size_system") @db.VarChar(30)
+  /// Optional product video — an uploaded R2 URL or a YouTube/Vimeo link.
+  videoUrl            String?       @map("video_url") @db.Text
+  /// Merchandising badges (New, Bestseller, Limited...). Stored trimmed, original casing.
+  tags                String[]      @default([])
+  /// Extra lower-cased words the storefront search should match (synonyms, model codes).
+  searchKeywords      String[]      @default([]) @map("search_keywords")
+  /// Max units of this product (all variants combined) per order. null = platform default.
+  maxOrderQuantity    Int?          @map("max_order_quantity")
+  isReturnable        Boolean       @default(true) @map("is_returnable")
+  /// Overrides the platform return window for this product. null = platform default.
+  returnWindowDays    Int?          @map("return_window_days")
+  codAvailable        Boolean       @default(true) @map("cod_available")
+  // ---- Legal disclosures (Consumer Protection (E-Commerce) Rules / Legal Metrology) ----
+  countryOfOrigin     String?       @map("country_of_origin") @db.VarChar(80)
+  manufacturerDetails String?       @map("manufacturer_details") @db.Text
+  packerDetails       String?       @map("packer_details") @db.Text
+  importerDetails     String?       @map("importer_details") @db.Text
+  netQuantity         String?       @map("net_quantity") @db.VarChar(60)
+  warrantyInfo        String?       @map("warranty_info") @db.VarChar(255)
+  status              ProductStatus @default(DRAFT)
+  orderCount          Int           @default(0) @map("order_count")
+  metaTitle           String?       @map("meta_title") @db.VarChar(255)
+  metaDescription     String?       @map("meta_description") @db.Text
+  deletedAt           DateTime?     @map("deleted_at") @db.Timestamptz
+  createdAt           DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime      @updatedAt @map("updated_at") @db.Timestamptz
 
   subCategory     SubCategory             @relation(fields: [subCategoryId], references: [id])
   brandRef        Brand?                  @relation(fields: [brandId], references: [id], onDelete: SetNull)
@@ -362,9 +392,15 @@ model Product {
   collectionLinks CollectionProduct[]
   spotlights      FeaturedSpotlight[]
   wishlistItems   WishlistItem[]
+  colors          ProductColor[]
+  relationsFrom   ProductRelation[]       @relation("ProductRelationSource")
+  relationsTo     ProductRelation[]       @relation("ProductRelationTarget")
+  drafts          ProductDraft[]
 
   @@index([slug])
   @@index([subCategoryId])
+  @@index([tags], type: Gin)
+  @@index([searchKeywords], type: Gin)
   @@index([brandId])
   @@index([status])
   @@index([brand])
@@ -400,8 +436,14 @@ model ProductAttributeValue {
 model ProductVariant {
   id                String   @id @default(uuid()) @db.Uuid
   productId         String   @map("product_id") @db.Uuid
+  /// The colour group this variant belongs to. null only for products that have no colours.
+  colorId           String?  @map("color_id") @db.Uuid
   sku               String   @unique @db.VarChar(80)
+  /// EAN / UPC / GTIN. Optional, unique when present.
+  barcode           String?  @unique @db.VarChar(64)
   size              String?  @db.VarChar(50)
+  /// Denormalised copy of ProductColor.name — kept in sync by productColorService.
+  /// Order snapshots, low-stock mails and the dashboard SQL read this column.
   color             String?  @db.VarChar(50)
   colorHex          String?  @map("color_hex") @db.VarChar(7)
   priceOverride     Decimal? @map("price_override") @db.Decimal(10, 2)
@@ -413,12 +455,14 @@ model ProductVariant {
   updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
   product        Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  colorRef       ProductColor?   @relation(fields: [colorId], references: [id], onDelete: Restrict)
   cartItems      CartItem[]
   orderItems     OrderItem[]
   stockMovements StockMovement[]
 
   @@unique([productId, size, color])
   @@index([productId])
+  @@index([colorId])
   @@index([sku])
   @@index([stock])
   @@map("product_variants")
@@ -427,17 +471,127 @@ model ProductVariant {
 model ProductImage {
   id           String   @id @default(uuid()) @db.Uuid
   productId    String   @map("product_id") @db.Uuid
+  /// null = shared image shown for every colour; otherwise the colour this photo belongs to.
+  colorId      String?  @map("color_id") @db.Uuid
   url          String   @db.Text
   publicId     String   @map("public_id") @db.VarChar(255)
   altText      String?  @map("alt_text") @db.VarChar(255)
+  /// Pixel size + bytes reported by the admin uploader; drives the low-resolution warning.
+  width        Int?
+  height       Int?
+  sizeBytes    Int?     @map("size_bytes")
   displayOrder Int      @default(0) @map("display_order")
+  /// Exactly one per product: the cover used on listing cards, cart and wishlist.
   isPrimary    Boolean  @default(false) @map("is_primary")
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  color   ProductColor? @relation(fields: [colorId], references: [id], onDelete: Cascade)
 
   @@index([productId, displayOrder])
+  @@index([colorId, displayOrder])
+  @@index([publicId])
   @@map("product_images")
+}
+
+/// One colourway of a product ("Chalk White / Pure Grey"). Owns its photos, optional
+/// own pricing, and groups the size variants sold in that colour.
+model ProductColor {
+  id           String   @id @default(uuid()) @db.Uuid
+  productId    String   @map("product_id") @db.Uuid
+  /// Library swatch this colour was picked from (null = custom colour).
+  swatchId     String?  @map("swatch_id") @db.Uuid
+  name         String   @db.VarChar(50)
+  hex          String?  @db.VarChar(7)
+  /// Second tone for two-colour colourways.
+  secondaryHex String?  @map("secondary_hex") @db.VarChar(7)
+  /// null = inherit the product's MRP / selling / cost price.
+  mrp          Decimal? @db.Decimal(10, 2)
+  sellingPrice Decimal? @map("selling_price") @db.Decimal(10, 2)
+  costPrice    Decimal? @map("cost_price") @db.Decimal(10, 2)
+  isActive     Boolean  @default(true) @map("is_active")
+  isDefault    Boolean  @default(false) @map("is_default")
+  displayOrder Int      @default(0) @map("display_order")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  product  Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  swatch   ColorSwatch?     @relation(fields: [swatchId], references: [id], onDelete: SetNull)
+  variants ProductVariant[]
+  images   ProductImage[]
+
+  @@unique([productId, name])
+  @@index([productId, displayOrder])
+  @@map("product_colors")
+}
+
+/// Admin's reusable colour library. Picking a swatch pre-fills name + hex on a ProductColor.
+model ColorSwatch {
+  id           String   @id @default(uuid()) @db.Uuid
+  name         String   @unique @db.VarChar(50)
+  hex          String   @db.VarChar(7)
+  secondaryHex String?  @map("secondary_hex") @db.VarChar(7)
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  productColors ProductColor[]
+
+  @@index([isActive])
+  @@map("color_swatches")
+}
+
+/// Reusable size sets ("S–XXL", "UK 6–11"). Optionally suggested for one sub-category.
+model SizePreset {
+  id            String   @id @default(uuid()) @db.Uuid
+  name          String   @unique @db.VarChar(80)
+  sizeSystem    String?  @map("size_system") @db.VarChar(30)
+  sizes         String[]
+  subCategoryId String?  @map("sub_category_id") @db.Uuid
+  isActive      Boolean  @default(true) @map("is_active")
+  displayOrder  Int      @default(0) @map("display_order")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  subCategory SubCategory? @relation(fields: [subCategoryId], references: [id], onDelete: SetNull)
+
+  @@index([subCategoryId])
+  @@map("size_presets")
+}
+
+/// Manually curated "related" and "frequently bought together" links. Directional.
+model ProductRelation {
+  id               String              @id @default(uuid()) @db.Uuid
+  productId        String              @map("product_id") @db.Uuid
+  relatedProductId String              @map("related_product_id") @db.Uuid
+  type             ProductRelationType
+  displayOrder     Int                 @default(0) @map("display_order")
+  createdAt        DateTime            @default(now()) @map("created_at") @db.Timestamptz
+
+  product        Product @relation("ProductRelationSource", fields: [productId], references: [id], onDelete: Cascade)
+  relatedProduct Product @relation("ProductRelationTarget", fields: [relatedProductId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, relatedProductId, type])
+  @@index([productId, type, displayOrder])
+  @@map("product_relations")
+}
+
+/// Autosaved admin product-form state. `id` is generated by the admin client so the
+/// autosave PUT is idempotent. productId is set when the draft is an edit of a live product.
+model ProductDraft {
+  id        String   @id @db.Uuid
+  adminId   String   @map("admin_id") @db.Uuid
+  productId String?  @map("product_id") @db.Uuid
+  title     String?  @db.VarChar(255)
+  data      Json
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  admin   Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([adminId, updatedAt])
+  @@map("product_drafts")
 }
 
 /// Defines the size chart format for a sub-category.
@@ -480,6 +634,8 @@ model StockMovement {
   stockBefore   Int                 @map("stock_before")
   stockAfter    Int                 @map("stock_after")
   note          String?             @db.Text
+  /// Admin who made a manual change. null for system movements (orders, returns, jobs).
+  adminId       String?             @map("admin_id") @db.Uuid
   createdAt     DateTime            @default(now()) @map("created_at") @db.Timestamptz
 
   variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
@@ -631,19 +787,22 @@ model Order {
 /// All product data is snapshotted so renaming or deleting a product
 /// never changes historical orders or invoices.
 model OrderItem {
-  id           String  @id @default(uuid()) @db.Uuid
-  orderId      String  @map("order_id") @db.Uuid
-  variantId    String  @map("variant_id") @db.Uuid
-  productName  String  @map("product_name") @db.VarChar(255)
-  variantLabel String  @map("variant_label") @db.VarChar(120)
-  sku          String  @db.VarChar(80)
-  imageUrl     String? @map("image_url") @db.Text
-  hsnCode      String? @map("hsn_code") @db.VarChar(20)
-  unitPrice    Decimal @map("unit_price") @db.Decimal(10, 2)
-  quantity     Int
-  gstRate      Decimal @default(0) @map("gst_rate") @db.Decimal(5, 2)
-  taxAmount    Decimal @default(0) @map("tax_amount") @db.Decimal(10, 2)
-  lineTotal    Decimal @map("line_total") @db.Decimal(10, 2)
+  id               String  @id @default(uuid()) @db.Uuid
+  orderId          String  @map("order_id") @db.Uuid
+  variantId        String  @map("variant_id") @db.Uuid
+  productName      String  @map("product_name") @db.VarChar(255)
+  variantLabel     String  @map("variant_label") @db.VarChar(120)
+  sku              String  @db.VarChar(80)
+  imageUrl         String? @map("image_url") @db.Text
+  hsnCode          String? @map("hsn_code") @db.VarChar(20)
+  unitPrice        Decimal @map("unit_price") @db.Decimal(10, 2)
+  quantity         Int
+  gstRate          Decimal @default(0) @map("gst_rate") @db.Decimal(5, 2)
+  taxAmount        Decimal @default(0) @map("tax_amount") @db.Decimal(10, 2)
+  lineTotal        Decimal @map("line_total") @db.Decimal(10, 2)
+  /// Return rules snapshotted at purchase so later product edits never change them.
+  isReturnable     Boolean @default(true) @map("is_returnable")
+  returnWindowDays Int?    @map("return_window_days")
 
   order       Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
   variant     ProductVariant @relation(fields: [variantId], references: [id])
