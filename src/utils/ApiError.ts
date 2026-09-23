@@ -7,6 +7,8 @@ export class ApiError extends Error {
   public readonly statusCode: number;
   public readonly errors: FieldError[];
   public readonly isOperational: boolean;
+  /** Stable machine-readable code the frontend can branch on (e.g. AUTH_REQUIRED). */
+  public code?: string;
 
   constructor(
     statusCode: number,
@@ -29,6 +31,13 @@ export class ApiError extends Error {
 
   static unauthorized(message = 'Unauthorized') {
     return new ApiError(401, message);
+  }
+
+  /** A shopper tried a members-only action (cart, wishlist, checkout) without signing in. */
+  static authRequired(message = 'Please sign in to your Athletix account to continue') {
+    const error = new ApiError(401, message);
+    error.code = 'AUTH_REQUIRED';
+    return error;
   }
 
   static forbidden(message = 'Forbidden') {

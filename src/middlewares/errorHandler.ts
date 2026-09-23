@@ -10,6 +10,8 @@ interface ErrorResponseBody {
   success: false;
   statusCode: number;
   message: string;
+  /** Present only for errors the frontend branches on, e.g. AUTH_REQUIRED. */
+  code?: string;
   errors: FieldError[];
   requestId?: string;
   stack?: string;
@@ -79,6 +81,7 @@ export function errorHandler(err: Error, req: Request, res: Response, _next: Nex
     success: false,
     statusCode: apiError.statusCode,
     message: apiError.message,
+    ...(apiError.code ? { code: apiError.code } : {}),
     errors: apiError.errors,
     requestId: req.requestId,
   };
