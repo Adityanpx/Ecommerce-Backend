@@ -39,6 +39,20 @@ export function authenticate(req: Request, _res: Response, next: NextFunction): 
   }
 }
 
+/**
+ * Members-only shopper actions (cart, wishlist, checkout).
+ * Same checks as `authenticate`, but a missing token is reported as
+ * AUTH_REQUIRED so the storefront opens its "sign in to continue" popup
+ * instead of treating it as a broken session.
+ */
+export function requireCustomer(req: Request, res: Response, next: NextFunction): void {
+  if (!extractBearerToken(req)) {
+    next(ApiError.authRequired());
+    return;
+  }
+  authenticate(req, res, next);
+}
+
 /** Admin routes. Signed with a different secret than customer tokens. */
 export function authorize(req: Request, _res: Response, next: NextFunction): void {
   const token = extractBearerToken(req);

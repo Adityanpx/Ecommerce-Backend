@@ -37,6 +37,12 @@ export const authenticatedLimiter = build(
   (req) => req.user?.id ?? req.admin?.id ?? req.ip ?? 'unknown',
 );
 
+/** 10 profile-picture upload URLs per user per hour. */
+export const avatarUploadLimiter = build(
+  RATE_LIMIT.AVATAR_UPLOAD,
+  (req) => req.user?.id ?? req.ip ?? 'unknown',
+);
+
 export const orderCreateLimiter = build(
   RATE_LIMIT.ORDER_CREATE,
   (req) => req.user?.id ?? req.ip ?? 'unknown',
