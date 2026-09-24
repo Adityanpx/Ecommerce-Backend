@@ -1,13 +1,13 @@
 import { Router } from 'express';
 import { wishlistController } from '../../controllers/customer/wishlist.controller';
 import { validate } from '../../middlewares/validate';
-import { authenticate } from '../../middlewares/authenticate';
+import { requireCustomer } from '../../middlewares/authenticate';
 import { wishlistItemSchema, wishlistBatchCheckSchema } from '../../validators/wishlist.validator';
 
 const router = Router();
 
-// All wishlist routes require authentication
-router.use(authenticate);
+// Members only — a signed-out shopper gets 401 AUTH_REQUIRED (storefront shows the sign-in popup).
+router.use(requireCustomer);
 
 router.get('/', wishlistController.getWishlist);
 router.post('/', validate(wishlistItemSchema), wishlistController.addItem);

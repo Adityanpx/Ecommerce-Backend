@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { orderController } from '../../controllers/customer/order.controller';
 import { validate } from '../../middlewares/validate';
-import { authenticate, optionalAuth } from '../../middlewares/authenticate';
+import { authenticate, optionalAuth, requireCustomer } from '../../middlewares/authenticate';
 import { orderCreateLimiter } from '../../middlewares/rateLimiter';
 import {
   createAddressSchema,
@@ -42,29 +42,30 @@ router.post(
   orderController.setDefaultAddress,
 );
 
-// ---------- Checkout (guests allowed) ----------
+// ---------- Checkout (members only — guest checkout is switched off) ----------
 router.post(
   '/checkout/summary',
-  optionalAuth,
+  requireCustomer,
   validate(checkoutSummarySchema),
   orderController.summary,
 );
 router.post(
   '/orders',
-  optionalAuth,
+  requireCustomer,
   orderCreateLimiter,
   validate(createOrderSchema),
   orderController.create,
 );
 router.post(
   '/payments/verify',
-  optionalAuth,
+  requireCustomer,
   validate(verifyPaymentSchema),
   orderController.verifyPayment,
 );
 
 // ---------- Orders ----------
 router.get('/orders', authenticate, orderController.list);
+// optionalAuth kept: orders placed as a guest before this change are still viewable by number.
 router.get('/orders/:orderNumber', optionalAuth, orderController.getOne);
 router.post(
   '/orders/:id/cancel',

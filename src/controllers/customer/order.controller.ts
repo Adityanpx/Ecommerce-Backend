@@ -9,8 +9,9 @@ import { asyncHandler } from '../../utils/asyncHandler';
 import { ApiError } from '../../utils/ApiError';
 import { parsePagination, buildPaginationMeta } from '../../utils/pagination';
 
+/** Checkout routes sit behind requireCustomer, so req.user is always set where this is used. */
 function owner(req: Request) {
-  return { userId: req.user?.id, guestToken: req.guestToken };
+  return { userId: req.user!.id };
 }
 
 export const orderController = {
