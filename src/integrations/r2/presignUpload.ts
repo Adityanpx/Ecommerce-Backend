@@ -34,6 +34,18 @@ function bucketFor(folder: string): { bucket: string; visibility: UploadVisibili
   return { bucket: config.r2.publicBucket, visibility: 'public' };
 }
 
+export interface PresignOptions {
+  /** Defaults to UPLOAD.ALLOWED_IMAGE_TYPES. */
+  allowedTypes?: readonly string[];
+  /**
+   * Exact byte size the client will upload. When given, it is signed into the
+   * URL, so R2 rejects a PUT of any other size — this is how per-folder size
+   * limits (avatars, videos) are enforced on a direct browser upload.
+   */
+  contentLength?: number;
+  maxBytes?: number;
+}
+
 /**
  * Mirrors createUploadSignature's shape/contract as closely as an S3-style
  * presign allows: caller passes a whitelisted subfolder, gets back what it
@@ -42,27 +54,43 @@ function bucketFor(folder: string): { bucket: string; visibility: UploadVisibili
 export async function createPresignedUpload(
   subFolder: string,
   contentType: string,
+  options: PresignOptions = {},
 ): Promise<PresignedUpload> {
   if (!r2Client) {
     throw ApiError.internal('R2 storage is not configured');
   }
 
-  if (
-    !UPLOAD.ALLOWED_IMAGE_TYPES.includes(contentType as (typeof UPLOAD.ALLOWED_IMAGE_TYPES)[number])
-  ) {
+  const allowedTypes = options.allowedTypes ?? UPLOAD.ALLOWED_IMAGE_TYPES;
+  if (!allowedTypes.includes(contentType)) {
     throw ApiError.badRequest(`Unsupported content type: ${contentType}`);
+  }
+
+  if (options.maxBytes !== undefined) {
+    if (options.contentLength === undefined) {
+      throw ApiError.badRequest('contentLength is required for this upload');
+    }
+    if (options.contentLength > options.maxBytes) {
+      throw ApiError.badRequest(
+        `File is too large. Maximum is ${Math.round(options.maxBytes / (1024 * 1024))} MB`,
+      );
+    }
   }
 
   const { bucket, visibility } = bucketFor(subFolder);
 
-  const extension = contentType.split('/')[1] === 'jpeg' ? 'jpg' : contentType.split('/')[1];
+  const subtype = contentType.split('/')[1];
+  const extension = subtype === 'jpeg' ? 'jpg' : subtype;
   const key = `${subFolder}/${Date.now()}-${crypto.randomUUID()}.${extension}`;
 
   const command = new PutObjectCommand({
     Bucket: bucket,
     Key: key,
     ContentType: contentType,
+    ...(options.contentLength !== undefined ? { ContentLength: options.contentLength } : {}),
   });
+
+  const signed = ['content-type'];
+  if (options.contentLength !== undefined) signed.push('content-length');
 
   const uploadUrl = await getSignedUrl(r2Client, command, {
     expiresIn: UPLOAD_URL_TTL_SECONDS,
@@ -70,7 +98,7 @@ export async function createPresignedUpload(
     // along unenforced, so a client could request a signature for
     // image/png and then PUT arbitrary bytes as e.g. text/html, which the
     // public bucket would then serve back with that MIME type.
-    signableHeaders: new Set(['content-type']),
+    signableHeaders: new Set(signed),
   });
 
   const publicUrl =

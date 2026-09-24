@@ -65,7 +65,32 @@ export const updateProfileSchema = z.object({
     firstName: z.string().min(1).max(100).optional(),
     lastName: z.string().max(100).nullable().optional(),
     phone: phoneField.optional(),
-    avatarUrl: z.string().url().nullable().optional(),
+    // avatarUrl is intentionally NOT accepted here any more — the picture is set through
+    // PUT /auth/me/avatar with an uploaded R2 key, so a customer cannot point it at any URL.
+  }),
+});
+
+export const avatarUploadUrlSchema = z.object({
+  body: z.object({
+    contentType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
+    /** Bytes. Signed into the upload URL; max 2 MB. */
+    contentLength: z.coerce
+      .number()
+      .int()
+      .positive()
+      .max(2 * 1024 * 1024, 'Profile picture must be 2 MB or smaller'),
+  }),
+});
+
+export const setAvatarSchema = z.object({
+  body: z.object({
+    /** The `key` returned by POST /auth/me/avatar/upload-url, e.g. avatars/1727000000000-<uuid>.webp */
+    key: z
+      .string()
+      .regex(
+        /^avatars\/\d{10,16}-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(jpg|png|webp)$/,
+        'Invalid upload key',
+      ),
   }),
 });
 
