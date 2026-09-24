@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { cartController } from '../../controllers/customer/cart.controller';
 import { validate } from '../../middlewares/validate';
-import { optionalAuth, authenticate } from '../../middlewares/authenticate';
+import { optionalAuth, requireCustomer } from '../../middlewares/authenticate';
 import {
   addToCartSchema,
   updateCartItemSchema,
@@ -12,10 +12,17 @@ import { idParamSchema } from '../../validators/catalog.validator';
 
 const router = Router();
 
-// optionalAuth on every cart route — guests and logged-in users share these.
-router.use(optionalAuth);
+/**
+ * The cart is members-only. Browsing stays open to everyone, but adding to
+ * the cart, changing it, and checking out require a signed-in customer.
+ *
+ * GET stays readable without a token so the header badge can render for a
+ * signed-out visitor: it returns an empty cart and never creates a guest cart.
+ */
+router.get('/', optionalAuth, cartController.get);
 
-router.get('/', cartController.get);
+router.use(requireCustomer);
+
 router.post('/items', validate(addToCartSchema), cartController.addItem);
 router.patch('/items/:id', validate(updateCartItemSchema), cartController.updateItem);
 router.delete('/items/:id', validate(idParamSchema), cartController.removeItem);
@@ -26,7 +33,7 @@ router.post('/coupon', validate(applyCouponSchema), cartController.applyCoupon);
 router.delete('/coupon', cartController.removeCoupon);
 router.delete('/', cartController.clear);
 
-// Merge requires a real logged-in user.
-router.post('/merge', authenticate, validate(mergeCartSchema), cartController.merge);
+// Kept so carts created by guests before this change can still be merged once after login.
+router.post('/merge', validate(mergeCartSchema), cartController.merge);
 
 export default router;

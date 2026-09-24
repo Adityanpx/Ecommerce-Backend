@@ -3,8 +3,9 @@ import { cartService, CartOwner } from '../../services/cart.service';
 import { ApiResponse } from '../../utils/ApiResponse';
 import { asyncHandler } from '../../utils/asyncHandler';
 
+/** Every mutating cart route is behind requireCustomer, so req.user is always set there. */
 function owner(req: Request): CartOwner {
-  return { userId: req.user?.id, guestToken: req.guestToken };
+  return { userId: req.user!.id };
 }
 
 function respond(
@@ -18,7 +19,12 @@ function respond(
 
 export const cartController = {
   get: asyncHandler(async (req: Request, res: Response) => {
-    respond(res, await cartService.get(owner(req)));
+    // Signed-out visitors get an empty cart so the header badge shows 0.
+    if (!req.user) {
+      res.json(ApiResponse.ok(await cartService.emptyResponse()));
+      return;
+    }
+    respond(res, await cartService.get({ userId: req.user.id }));
   }),
 
   addItem: asyncHandler(async (req: Request, res: Response) => {
