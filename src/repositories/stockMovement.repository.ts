@@ -12,6 +12,7 @@ export const stockMovementRepository = {
       stockBefore: number;
       stockAfter: number;
       note?: string | null;
+      adminId?: string | null;
     },
     client: Client = prisma,
   ) {
@@ -23,6 +24,7 @@ export const stockMovementRepository = {
         stockBefore: data.stockBefore,
         stockAfter: data.stockAfter,
         note: data.note ?? null,
+        adminId: data.adminId ?? null,
       },
     });
   },
@@ -39,7 +41,7 @@ export const stockMovementRepository = {
     return prisma.stockMovement.findMany({
       where: { variant: { productId } },
       include: {
-        variant: { select: { id: true, sku: true, size: true, color: true } },
+        variant: { select: { id: true, sku: true, size: true, color: true, colorId: true } },
       },
       orderBy: { createdAt: 'desc' },
       take: limit,
