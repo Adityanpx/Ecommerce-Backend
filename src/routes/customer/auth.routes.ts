@@ -7,6 +7,7 @@ import {
   signupLimiter,
   otpSendLimiter,
   forgotPasswordLimiter,
+  avatarUploadLimiter,
 } from '../../middlewares/rateLimiter';
 import {
   signupSchema,
@@ -17,6 +18,8 @@ import {
   resetPasswordSchema,
   changePasswordSchema,
   updateProfileSchema,
+  avatarUploadUrlSchema,
+  setAvatarSchema,
 } from '../../validators/auth.validator';
 
 const router = Router();
@@ -38,6 +41,17 @@ router.post('/reset-password', validate(resetPasswordSchema), authController.res
 
 router.get('/me', authenticate, authController.me);
 router.patch('/me', authenticate, validate(updateProfileSchema), authController.updateMe);
+
+// Profile picture: get upload URL -> browser PUTs the file to R2 -> save the key.
+router.post(
+  '/me/avatar/upload-url',
+  authenticate,
+  avatarUploadLimiter,
+  validate(avatarUploadUrlSchema),
+  authController.avatarUploadUrl,
+);
+router.put('/me/avatar', authenticate, validate(setAvatarSchema), authController.setAvatar);
+router.delete('/me/avatar', authenticate, authController.removeAvatar);
 router.post(
   '/change-password',
   authenticate,

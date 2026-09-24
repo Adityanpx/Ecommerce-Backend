@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { authService } from '../../services/auth.service';
+import { uploadService } from '../../services/upload.service';
 import { ApiResponse } from '../../utils/ApiResponse';
 import { asyncHandler } from '../../utils/asyncHandler';
 import { ApiError } from '../../utils/ApiError';
@@ -121,5 +122,25 @@ export const authController = {
   updateMe: asyncHandler(async (req: Request, res: Response) => {
     const user = await authService.updateProfile(req.user!.id, req.body);
     res.json(ApiResponse.ok({ user }, 'Profile updated'));
+  }),
+
+  /** Step 1 of the profile-picture upload: a one-time PUT URL straight to R2. */
+  avatarUploadUrl: asyncHandler(async (req: Request, res: Response) => {
+    const signature = await uploadService.getAvatarSignature(
+      req.body.contentType,
+      req.body.contentLength,
+    );
+    res.json(ApiResponse.ok(signature));
+  }),
+
+  /** Step 2: after the browser's PUT succeeds, save the key on the profile. */
+  setAvatar: asyncHandler(async (req: Request, res: Response) => {
+    const user = await authService.setAvatar(req.user!.id, req.body.key);
+    res.json(ApiResponse.ok({ user }, 'Profile picture updated'));
+  }),
+
+  removeAvatar: asyncHandler(async (req: Request, res: Response) => {
+    const user = await authService.removeAvatar(req.user!.id);
+    res.json(ApiResponse.ok({ user }, 'Profile picture removed'));
   }),
 };

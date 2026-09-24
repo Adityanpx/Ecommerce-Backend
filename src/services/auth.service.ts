@@ -21,6 +21,7 @@ import { sendOtpSms } from '../integrations/msg91/sendOtp';
 import { sendEmail } from '../integrations/resend/sendEmail';
 import { welcomeEmail, passwordResetEmail } from '../integrations/resend/templates/auth.templates';
 import { logger } from '../utils/logger';
+import { deleteAsset } from '../integrations/r2/deleteAsset';
 
 export interface PublicUser {
   id: string;
@@ -43,6 +44,12 @@ export interface AuthResult {
 interface RequestContext {
   userAgent?: string;
   ipAddress?: string;
+}
+
+/** "https://cdn.x/avatars/1-uuid.webp" -> "avatars/1-uuid.webp"; null for anything we didn't upload. */
+function avatarKeyFromUrl(url: string | null, baseUrl: string | undefined): string | null {
+  if (!url || !baseUrl || !url.startsWith(`${baseUrl}/avatars/`)) return null;
+  return url.slice(baseUrl.length + 1);
 }
 
 function toPublicUser(user: User): PublicUser {
@@ -375,7 +382,6 @@ export const authService = {
       firstName?: string;
       lastName?: string | null;
       phone?: string;
-      avatarUrl?: string | null;
     },
   ): Promise<PublicUser> {
     if (input.phone) {
@@ -388,6 +394,40 @@ export const authService = {
     }
 
     const user = await userRepository.update(userId, input);
+    return toPublicUser(user);
+  },
+
+  // ---------- Profile picture ----------
+
+  /**
+   * Saves an avatar the browser has already uploaded to R2 (key from
+   * uploadService.getAvatarSignature). The old picture is deleted from R2.
+   */
+  async setAvatar(userId: string, key: string): Promise<PublicUser> {
+    const baseUrl = config.r2.publicBaseUrl?.replace(/\/$/, '');
+    if (!baseUrl) throw ApiError.internal('Image storage is not configured');
+
+    const existing = await userRepository.findById(userId);
+    if (!existing) throw ApiError.notFound('User not found');
+
+    const user = await userRepository.update(userId, { avatarUrl: `${baseUrl}/${key}` });
+
+    const oldKey = avatarKeyFromUrl(existing.avatarUrl, baseUrl);
+    if (oldKey && oldKey !== key) void deleteAsset(oldKey);
+
+    return toPublicUser(user);
+  },
+
+  async removeAvatar(userId: string): Promise<PublicUser> {
+    const existing = await userRepository.findById(userId);
+    if (!existing) throw ApiError.notFound('User not found');
+
+    const user = await userRepository.update(userId, { avatarUrl: null });
+
+    const baseUrl = config.r2.publicBaseUrl?.replace(/\/$/, '');
+    const oldKey = avatarKeyFromUrl(existing.avatarUrl, baseUrl);
+    if (oldKey) void deleteAsset(oldKey);
+
     return toPublicUser(user);
   },
 
