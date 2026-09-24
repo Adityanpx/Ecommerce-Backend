@@ -1,7 +1,14 @@
 import { addDays } from 'date-fns';
 import { cartRepository, CartWithItems } from '../repositories/cart.repository';
 import { variantRepository } from '../repositories/variant.repository';
-import { pricingService, variantLabel, PriceBreakdown } from './pricing.service';
+import {
+  pricingService,
+  variantLabel,
+  lineImageFor,
+  maxOrderQuantityFor,
+  PriceBreakdown,
+} from './pricing.service';
+import { effectiveSellingPrice } from '../utils/productPricing';
 import { couponService } from './coupon.service';
 import { ApiError } from '../utils/ApiError';
 import { generateGuestToken } from '../utils/generators';
@@ -32,7 +39,39 @@ export interface CartResponse {
   pricing: PriceBreakdown;
 }
 
+/**
+ * Units of `productId` already in the cart (all variants, excluding saved-for-later),
+ * with `variantId`'s own quantity replaced by `newQuantity`.
+ */
+function productQuantityAfterChange(
+  cart: CartWithItems,
+  productId: string,
+  variantId: string,
+  newQuantity: number,
+): number {
+  return cart.items
+    .filter((i) => !i.isSavedForLater && i.variant.productId === productId)
+    .reduce((sum, i) => sum + (i.variantId === variantId ? 0 : i.quantity), newQuantity);
+}
+
+function assertWithinLimit(total: number, max: number, productName: string): void {
+  if (total > max) {
+    throw ApiError.badRequest(`You can order at most ${max} of "${productName}" per order`);
+  }
+}
+
 export const cartService = {
+  /** What a signed-out visitor sees: an empty cart. Nothing is written to the database. */
+  async emptyResponse(): Promise<CartResponse> {
+    const settings = await import('./settings.service').then((m) => m.settingsService.getAll());
+    return {
+      cartId: '',
+      couponCode: null,
+      savedItems: [],
+      pricing: pricingService.compose([], 0, settings),
+    };
+  },
+
   /** Finds the caller's cart, creating one if needed. */
   async resolveCart(owner: CartOwner): Promise<{ cart: CartWithItems; guestToken?: string }> {
     if (owner.userId) {
@@ -87,9 +126,12 @@ export const cartService = {
         subCategorySlug: item.variant.product.subCategory.slug,
         sportSlug: item.variant.product.subCategory.sport.slug,
         variantLabel: variantLabel(item.variant.size, item.variant.color),
-        imageUrl: item.variant.imageUrl ?? item.variant.product.images[0]?.url ?? null,
-        unitPrice: Number(item.variant.priceOverride ?? item.variant.product.sellingPrice),
-        inStock: item.variant.stock > 0 && item.variant.isActive,
+        imageUrl: lineImageFor(item),
+        unitPrice: effectiveSellingPrice(item.variant, item.variant.colorRef, item.variant.product),
+        inStock:
+          item.variant.stock > 0 &&
+          item.variant.isActive &&
+          (item.variant.colorRef?.isActive ?? true),
       }));
 
     return {
@@ -109,7 +151,9 @@ export const cartService = {
   async addItem(owner: CartOwner, variantId: string, quantity: number): Promise<CartResponse> {
     const variant = await variantRepository.findById(variantId);
 
-    if (!variant || !variant.isActive) throw ApiError.notFound('This item is not available');
+    if (!variant || !variant.isActive || variant.colorRef?.isActive === false) {
+      throw ApiError.notFound('This item is not available');
+    }
     if (variant.product.deletedAt || variant.product.status !== 'ACTIVE') {
       throw ApiError.badRequest('This product is not available for purchase');
     }
@@ -119,9 +163,11 @@ export const cartService = {
     const existingItem = cart.items.find((i) => i.variantId === variantId && !i.isSavedForLater);
     const requested = (existingItem?.quantity ?? 0) + quantity;
 
-    if (requested > CART.MAX_QUANTITY_PER_ITEM) {
-      throw ApiError.badRequest(`You can order at most ${CART.MAX_QUANTITY_PER_ITEM} of this item`);
-    }
+    assertWithinLimit(
+      productQuantityAfterChange(cart, variant.productId, variantId, requested),
+      maxOrderQuantityFor(variant.product),
+      variant.product.name,
+    );
 
     if (variant.stock < requested) {
       throw ApiError.conflict(
@@ -147,6 +193,18 @@ export const cartService = {
 
     if (item.variant.stock < quantity) {
       throw ApiError.conflict(`Only ${item.variant.stock} left in stock`);
+    }
+
+    const [cart, variant] = await Promise.all([
+      cartRepository.findById(item.cartId),
+      variantRepository.findById(item.variantId),
+    ]);
+    if (cart && variant && !item.isSavedForLater) {
+      assertWithinLimit(
+        productQuantityAfterChange(cart, variant.productId, variant.id, quantity),
+        maxOrderQuantityFor(variant.product),
+        variant.product.name,
+      );
     }
 
     await cartRepository.updateItem(itemId, { quantity });
@@ -178,6 +236,20 @@ export const cartService = {
 
     if (!saved && item.variant.stock < item.quantity) {
       throw ApiError.conflict('This item is no longer available in that quantity');
+    }
+
+    if (!saved) {
+      const [cart, variant] = await Promise.all([
+        cartRepository.findById(item.cartId),
+        variantRepository.findById(item.variantId),
+      ]);
+      if (cart && variant) {
+        assertWithinLimit(
+          productQuantityAfterChange(cart, variant.productId, variant.id, item.quantity),
+          maxOrderQuantityFor(variant.product),
+          variant.product.name,
+        );
+      }
     }
 
     await cartRepository.updateItem(itemId, { isSavedForLater: saved });
@@ -248,7 +320,7 @@ export const cartService = {
 
       const existing = userItemsByVariant.get(guestItem.variantId);
       const combined = (existing?.quantity ?? 0) + guestItem.quantity;
-      const capped = Math.min(combined, variant.stock, CART.MAX_QUANTITY_PER_ITEM);
+      const capped = Math.min(combined, variant.stock, maxOrderQuantityFor(variant.product));
 
       await cartRepository.upsertItem(userCart.id, guestItem.variantId, capped);
     }
