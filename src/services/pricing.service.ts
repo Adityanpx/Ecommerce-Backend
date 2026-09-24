@@ -1,6 +1,9 @@
 import { CartWithItems } from '../repositories/cart.repository';
 import { settingsService, PlatformSettings } from './settings.service';
 import { add, multiply, subtract, percentageOf, toNumber } from '../utils/money';
+import { effectiveMrp, effectiveSellingPrice } from '../utils/productPricing';
+import { CART } from '../config/constants';
+import { ApiError } from '../utils/ApiError';
 
 export interface PricedLine {
   cartItemId: string;
@@ -11,10 +14,14 @@ export interface PricedLine {
   subCategorySlug: string;
   sportSlug: string;
   variantLabel: string;
+  colorId: string | null;
+  colorName: string | null;
   sku: string;
   imageUrl: string | null;
   hsnCode: string | null;
   unitPrice: number;
+  /** MRP for this line's colour — lets the cart show "you saved". */
+  mrp: number;
   quantity: number;
   lineTotal: number;
   gstRate: number;
@@ -23,6 +30,13 @@ export interface PricedLine {
   inStock: boolean;
   isOversized: boolean;
   perProductShipping: number | null;
+  /** false = the whole order cannot be paid by COD. */
+  codAvailable: boolean;
+  /** Snapshotted onto the order item at checkout. */
+  isReturnable: boolean;
+  returnWindowDays: number | null;
+  /** Max units of this PRODUCT (all its variants together) per order. */
+  maxOrderQuantity: number;
 }
 
 export interface PriceBreakdown {
@@ -35,14 +49,30 @@ export interface PriceBreakdown {
   hasOutOfStock: boolean;
 }
 
-/** Variant override wins over product base price. */
-function unitPriceFor(item: CartWithItems['items'][number]): number {
-  const override = item.variant.priceOverride;
-  return toNumber(override ?? item.variant.product.sellingPrice);
+type CartLine = CartWithItems['items'][number];
+
+/** variant override → colour price → product price (see utils/productPricing). */
+function unitPriceFor(item: CartLine): number {
+  return effectiveSellingPrice(item.variant, item.variant.colorRef, item.variant.product);
+}
+
+/** variant image → colour's first photo → product cover. */
+export function lineImageFor(item: CartLine): string | null {
+  return (
+    item.variant.imageUrl ??
+    item.variant.colorRef?.images[0]?.url ??
+    item.variant.product.images[0]?.url ??
+    null
+  );
+}
+
+/** A product's own limit, else the platform default. */
+export function maxOrderQuantityFor(product: { maxOrderQuantity: number | null }): number {
+  return product.maxOrderQuantity ?? CART.MAX_QUANTITY_PER_ITEM;
 }
 
 /** Product rate wins over category rate, which wins over the platform default. */
-function gstRateFor(item: CartWithItems['items'][number], settings: PlatformSettings): number {
+function gstRateFor(item: CartLine, settings: PlatformSettings): number {
   const product = item.variant.product;
   if (product.gstRate !== null) return Number(product.gstRate);
   if (product.subCategory && product.subCategory.gstRate !== null) {
@@ -88,10 +118,13 @@ export const pricingService = {
           subCategorySlug: product.subCategory.slug,
           sportSlug: product.subCategory.sport.slug,
           variantLabel: variantLabel(item.variant.size, item.variant.color),
+          colorId: item.variant.colorId,
+          colorName: item.variant.colorRef?.name ?? item.variant.color,
           sku: item.variant.sku,
-          imageUrl: item.variant.imageUrl ?? product.images[0]?.url ?? null,
+          imageUrl: lineImageFor(item),
           hsnCode: product.hsnCode,
           unitPrice,
+          mrp: effectiveMrp(item.variant.colorRef, product),
           quantity: item.quantity,
           lineTotal,
           gstRate,
@@ -100,11 +133,16 @@ export const pricingService = {
           inStock:
             item.variant.stock >= item.quantity &&
             item.variant.isActive &&
+            (item.variant.colorRef?.isActive ?? true) &&
             product.status === 'ACTIVE' &&
             product.deletedAt === null,
           isOversized: product.isOversized,
           perProductShipping:
             product.shippingCharge !== null ? toNumber(product.shippingCharge) : null,
+          codAvailable: product.codAvailable,
+          isReturnable: product.isReturnable,
+          returnWindowDays: product.returnWindowDays,
+          maxOrderQuantity: maxOrderQuantityFor(product),
         };
       });
   },
@@ -185,6 +223,33 @@ export const pricingService = {
   /** Exposed for the coupon service so scope-limited discounts price correctly. */
   eligibleSubtotal(lines: PricedLine[], predicate: (line: PricedLine) => boolean): number {
     return lines.filter(predicate).reduce<number>((sum, line) => add(sum, line.lineTotal), 0);
+  },
+
+  /**
+   * Per-product quantity limit, counted across all of the product's variants
+   * (2 × size 8 + 1 × size 9 of a "max 2" shoe is 3 → rejected).
+   */
+  assertQuantityLimits(lines: PricedLine[]): void {
+    const perProduct = new Map<string, { name: string; qty: number; max: number }>();
+    for (const line of lines) {
+      const entry = perProduct.get(line.productId) ?? {
+        name: line.productName,
+        qty: 0,
+        max: line.maxOrderQuantity,
+      };
+      entry.qty += line.quantity;
+      perProduct.set(line.productId, entry);
+    }
+    for (const { name, qty, max } of perProduct.values()) {
+      if (qty > max) {
+        throw ApiError.badRequest(`You can order at most ${max} of "${name}" per order`);
+      }
+    }
+  },
+
+  /** Names of products in the cart that cannot be paid by cash on delivery. */
+  codBlockedProducts(lines: PricedLine[]): string[] {
+    return [...new Set(lines.filter((l) => !l.codAvailable).map((l) => l.productName))];
   },
 
   percentageOf,

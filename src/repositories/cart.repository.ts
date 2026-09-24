@@ -1,19 +1,42 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
 
-const cartInclude = {
+/**
+ * Exported so checkout (order.service) re-reads the cart inside its transaction
+ * with exactly the same shape pricing.service expects.
+ */
+export const cartInclude = {
   items: {
     orderBy: { addedAt: 'desc' as const },
     include: {
       variant: {
         include: {
+          colorRef: {
+            select: {
+              id: true,
+              name: true,
+              sellingPrice: true,
+              mrp: true,
+              isActive: true,
+              images: {
+                orderBy: { displayOrder: 'asc' as const },
+                take: 1,
+                select: { url: true },
+              },
+            },
+          },
           product: {
             select: {
               id: true,
               name: true,
               slug: true,
               brand: true,
+              mrp: true,
               sellingPrice: true,
+              maxOrderQuantity: true,
+              codAvailable: true,
+              isReturnable: true,
+              returnWindowDays: true,
               status: true,
               deletedAt: true,
               hsnCode: true,
