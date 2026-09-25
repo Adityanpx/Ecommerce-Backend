@@ -67,6 +67,14 @@ export const catalogController = {
         minPrice: query.minPrice !== undefined ? Number(query.minPrice) : undefined,
         maxPrice: query.maxPrice !== undefined ? Number(query.maxPrice) : undefined,
         inStockOnly: query.inStock === 'true',
+        // ?tag=New,Bestseller — "New arrivals" / "Best sellers" style rails.
+        tags:
+          typeof query.tag === 'string'
+            ? query.tag
+                .split(',')
+                .map((t) => t.trim())
+                .filter(Boolean)
+            : undefined,
         attributeFilters,
       },
       parseSort(query.sort),
