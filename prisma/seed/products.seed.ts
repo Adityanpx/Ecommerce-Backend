@@ -199,7 +199,7 @@ export async function seedProducts(prisma: PrismaClient): Promise<void> {
       })
       .filter((v): v is NonNullable<typeof v> => v !== null);
 
-    await prisma.product.create({
+    const product = await prisma.product.create({
       data: {
         subCategoryId: subCategory.id,
         name: seed.name,
@@ -213,20 +213,48 @@ export async function seedProducts(prisma: PrismaClient): Promise<void> {
         hsnCode: seed.hsnCode,
         weightGrams: seed.weightGrams ?? null,
         isOversized: seed.isOversized ?? false,
+        countryOfOrigin: 'India',
         status: 'ACTIVE',
         metaTitle: seed.name,
         metaDescription: seed.shortDescription,
         attributeValues: { create: attributeValues },
-        variants: {
-          create: seed.variants.map((v) => ({
-            sku: buildSku(seed.skuPrefix, v.size, v.color),
-            size: v.size,
-            color: v.color ?? null,
-            stock: v.stock,
-          })),
-        },
       },
     });
+
+    // One ProductColor per distinct colour; the first becomes the default.
+    const colorIds = new Map<string, string>();
+    const colorNames = [...new Set(seed.variants.map((v) => v.color).filter(Boolean))] as string[];
+    for (const [index, name] of colorNames.entries()) {
+      const color = await prisma.productColor.create({
+        data: { productId: product.id, name, isDefault: index === 0, displayOrder: index },
+      });
+      colorIds.set(name, color.id);
+    }
+
+    for (const v of seed.variants) {
+      const variant = await prisma.productVariant.create({
+        data: {
+          productId: product.id,
+          colorId: v.color ? (colorIds.get(v.color) ?? null) : null,
+          sku: buildSku(seed.skuPrefix, v.size, v.color),
+          size: v.size,
+          color: v.color ?? null,
+          stock: v.stock,
+        },
+      });
+      if (v.stock > 0) {
+        await prisma.stockMovement.create({
+          data: {
+            variantId: variant.id,
+            reason: 'INITIAL_STOCK',
+            quantityDelta: v.stock,
+            stockBefore: 0,
+            stockAfter: v.stock,
+            note: 'Seed',
+          },
+        });
+      }
+    }
 
     created += 1;
   }
