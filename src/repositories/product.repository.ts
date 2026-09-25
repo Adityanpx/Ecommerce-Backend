@@ -11,10 +11,13 @@ export interface AttributeFilter {
   max?: number;
 }
 
+export type StockStatusFilter = 'IN' | 'LOW' | 'OUT';
+
 export interface ProductListFilters {
   subCategoryId?: string;
   sportId?: string;
   brands?: string[];
+  brandId?: string;
   minPrice?: number;
   maxPrice?: number;
   inStockOnly?: boolean;
@@ -22,18 +25,44 @@ export interface ProductListFilters {
   status?: Prisma.EnumProductStatusFilter | ProductStatus;
   includeDeleted?: boolean;
   attributeFilters?: AttributeFilter[];
+  /** Product has ANY of these tags. */
+  tags?: string[];
+  /** Admin: stock health across the product's active variants. */
+  stockStatus?: StockStatusFilter;
+  /** Admin: extra where-clauses built by productQuality (missing-info filters). */
+  extraWhere?: Prisma.ProductWhereInput[];
 }
 
-export type ProductSort = 'price_asc' | 'price_desc' | 'newest' | 'popularity' | 'name_asc';
+export type ProductSort =
+  'price_asc' | 'price_desc' | 'newest' | 'popularity' | 'name_asc' | 'updated';
 
+/** Photos ordered the same way everywhere: cover first, then by position. */
+const imageOrder = [{ isPrimary: 'desc' as const }, { displayOrder: 'asc' as const }];
+
+/** Storefront listing card: cover image, colour swatches, price inputs, stock. */
 const listInclude = {
-  images: {
-    orderBy: [{ isPrimary: 'desc' as const }, { displayOrder: 'asc' as const }],
-    take: 1,
-  },
+  images: { orderBy: imageOrder, take: 1 },
   variants: {
     where: { isActive: true },
-    select: { id: true, stock: true, priceOverride: true },
+    select: { id: true, stock: true, priceOverride: true, colorId: true },
+  },
+  colors: {
+    where: { isActive: true },
+    orderBy: { displayOrder: 'asc' as const },
+    select: {
+      id: true,
+      name: true,
+      hex: true,
+      secondaryHex: true,
+      isDefault: true,
+      mrp: true,
+      sellingPrice: true,
+      images: {
+        orderBy: { displayOrder: 'asc' as const },
+        take: 1,
+        select: { url: true, altText: true },
+      },
+    },
   },
   subCategory: {
     select: {
@@ -45,14 +74,110 @@ const listInclude = {
   },
 } satisfies Prisma.ProductInclude;
 
+/** Admin product list row: everything the table + missing-info badges need. */
+const adminListInclude = {
+  images: {
+    orderBy: imageOrder,
+    select: { id: true, url: true, altText: true, width: true, height: true, colorId: true },
+  },
+  variants: {
+    select: {
+      id: true,
+      stock: true,
+      lowStockThreshold: true,
+      isActive: true,
+      priceOverride: true,
+      colorId: true,
+    },
+  },
+  colors: {
+    orderBy: { displayOrder: 'asc' as const },
+    select: {
+      id: true,
+      name: true,
+      hex: true,
+      secondaryHex: true,
+      isActive: true,
+      isDefault: true,
+      mrp: true,
+      sellingPrice: true,
+      _count: { select: { images: true } },
+    },
+  },
+  brandRef: { select: { id: true, name: true } },
+  subCategory: {
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      sport: { select: { id: true, name: true, slug: true } },
+    },
+  },
+} satisfies Prisma.ProductInclude;
+
+const relatedCardSelect = {
+  id: true,
+  name: true,
+  slug: true,
+  brand: true,
+  mrp: true,
+  sellingPrice: true,
+  status: true,
+  deletedAt: true,
+  images: { orderBy: imageOrder, take: 1, select: { url: true, altText: true } },
+  variants: { where: { isActive: true }, select: { stock: true } },
+  subCategory: { select: { slug: true, sport: { select: { slug: true } } } },
+} satisfies Prisma.ProductSelect;
+
+/** Storefront product page. Only sellable colours/sizes are returned. */
 const detailInclude = {
-  images: { orderBy: [{ isPrimary: 'desc' as const }, { displayOrder: 'asc' as const }] },
-  variants: { orderBy: [{ size: 'asc' as const }, { color: 'asc' as const }] },
+  images: { orderBy: imageOrder },
+  variants: {
+    where: { isActive: true },
+    orderBy: [{ size: 'asc' as const }, { color: 'asc' as const }],
+  },
+  colors: {
+    where: { isActive: true },
+    orderBy: { displayOrder: 'asc' as const },
+    include: { images: { orderBy: { displayOrder: 'asc' as const } } },
+  },
   attributeValues: { include: { attribute: true } },
   subCategory: {
     include: { sport: { select: { id: true, name: true, slug: true } } },
   },
+  relationsFrom: {
+    orderBy: { displayOrder: 'asc' as const },
+    include: { relatedProduct: { select: relatedCardSelect } },
+  },
 } satisfies Prisma.ProductInclude;
+
+/** Admin edit screen: every colour/size (including hidden ones) and all relations. */
+const adminDetailInclude = {
+  images: { orderBy: imageOrder },
+  variants: { orderBy: [{ size: 'asc' as const }, { color: 'asc' as const }] },
+  colors: {
+    orderBy: { displayOrder: 'asc' as const },
+    include: {
+      images: { orderBy: { displayOrder: 'asc' as const } },
+      swatch: { select: { id: true, name: true, hex: true, secondaryHex: true } },
+    },
+  },
+  attributeValues: { include: { attribute: true } },
+  brandRef: { select: { id: true, name: true, slug: true, logoUrl: true } },
+  subCategory: {
+    include: { sport: { select: { id: true, name: true, slug: true } } },
+  },
+  relationsFrom: {
+    orderBy: { displayOrder: 'asc' as const },
+    include: { relatedProduct: { select: relatedCardSelect } },
+  },
+} satisfies Prisma.ProductInclude;
+
+export type StorefrontListProduct = Prisma.ProductGetPayload<{ include: typeof listInclude }>;
+export type AdminListProduct = Prisma.ProductGetPayload<{ include: typeof adminListInclude }>;
+export type StorefrontProductDetail = Prisma.ProductGetPayload<{ include: typeof detailInclude }>;
+export type AdminProductDetail = Prisma.ProductGetPayload<{ include: typeof adminDetailInclude }>;
+export type RelatedCard = Prisma.ProductGetPayload<{ select: typeof relatedCardSelect }>;
 
 /**
  * Each attribute filter becomes its own `attributeValues: { some: {...} }` clause
@@ -112,6 +237,26 @@ function buildWhere(filters: ProductListFilters): Prisma.ProductWhereInput {
   if (filters.subCategoryId) and.push({ subCategoryId: filters.subCategoryId });
   if (filters.sportId) and.push({ subCategory: { sportId: filters.sportId } });
   if (filters.brands?.length) and.push({ brand: { in: filters.brands } });
+  if (filters.brandId) and.push({ brandId: filters.brandId });
+  if (filters.tags?.length) and.push({ tags: { hasSome: filters.tags } });
+
+  if (filters.stockStatus === 'OUT') {
+    and.push({ variants: { none: { isActive: true, stock: { gt: 0 } } } });
+  } else if (filters.stockStatus === 'LOW') {
+    // stock <= that variant's own threshold — a column-to-column comparison.
+    and.push({
+      variants: {
+        some: {
+          isActive: true,
+          stock: { gt: 0, lte: prisma.productVariant.fields.lowStockThreshold },
+        },
+      },
+    });
+  } else if (filters.stockStatus === 'IN') {
+    and.push({ variants: { some: { isActive: true, stock: { gt: 0 } } } });
+  }
+
+  if (filters.extraWhere?.length) and.push(...filters.extraWhere);
 
   if (filters.minPrice !== undefined || filters.maxPrice !== undefined) {
     const price: Prisma.DecimalFilter = {};
@@ -125,9 +270,14 @@ function buildWhere(filters: ProductListFilters): Prisma.ProductWhereInput {
   }
 
   if (filters.search) {
+    const lower = filters.search.toLowerCase();
     and.push({
       OR: [
         { name: { contains: filters.search, mode: 'insensitive' } },
+        // Admin-entered synonyms / model codes, stored lower-case (see productService).
+        { searchKeywords: { has: lower } },
+        { variants: { some: { sku: { equals: filters.search, mode: 'insensitive' } } } },
+        { variants: { some: { barcode: filters.search } } },
         { brand: { contains: filters.search, mode: 'insensitive' } },
         { shortDescription: { contains: filters.search, mode: 'insensitive' } },
         { subCategory: { name: { contains: filters.search, mode: 'insensitive' } } },
@@ -153,6 +303,8 @@ function buildOrderBy(sort?: ProductSort): Prisma.ProductOrderByWithRelationInpu
       return { orderCount: 'desc' };
     case 'name_asc':
       return { name: 'asc' };
+    case 'updated':
+      return { updatedAt: 'desc' };
     case 'newest':
     default:
       return { createdAt: 'desc' };
@@ -182,6 +334,32 @@ export const productRepository = {
     return { items, total };
   },
 
+  async findManyForAdmin(
+    filters: ProductListFilters,
+    sort: ProductSort | undefined,
+    skip: number,
+    take: number,
+  ) {
+    const where = buildWhere(filters);
+
+    const [items, total] = await prisma.$transaction([
+      prisma.product.findMany({
+        where,
+        include: adminListInclude,
+        orderBy: buildOrderBy(sort),
+        skip,
+        take,
+      }),
+      prisma.product.count({ where }),
+    ]);
+
+    return { items, total };
+  },
+
+  count(where: Prisma.ProductWhereInput) {
+    return prisma.product.count({ where: { deletedAt: null, ...where } });
+  },
+
   findBySlug(slug: string, onlyActive: boolean) {
     return prisma.product.findFirst({
       where: {
@@ -196,7 +374,7 @@ export const productRepository = {
   findById(id: string, includeDeleted = false) {
     return prisma.product.findFirst({
       where: { id, ...(includeDeleted ? {} : { deletedAt: null }) },
-      include: detailInclude,
+      include: adminDetailInclude,
     });
   },
 
