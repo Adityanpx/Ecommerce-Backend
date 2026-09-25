@@ -5,6 +5,7 @@ import { returnRepository } from '../repositories/return.repository';
 import { orderRepository } from '../repositories/order.repository';
 import { settingsService } from './settings.service';
 import { refundService } from './refund.service';
+import { stockMovementService } from './stockMovement.service';
 import { notificationService } from './notification.service';
 import { ApiError } from '../utils/ApiError';
 import { formatSequentialNumber } from '../utils/generators';
@@ -41,13 +42,7 @@ export const returnService = {
     }
 
     const settings = await settingsService.getAll();
-    const deadline = addDays(order.deliveredAt ?? order.createdAt, settings.returnWindowDays);
-
-    if (new Date() > deadline) {
-      throw ApiError.badRequest(
-        `The ${settings.returnWindowDays}-day return window for this order has closed`,
-      );
-    }
+    const deliveredAt = order.deliveredAt ?? order.createdAt;
 
     const existingReturns = await returnRepository.countForOrder(order.id);
     if (existingReturns > 0) {
@@ -62,6 +57,16 @@ export const returnService = {
       const orderItem = orderItemsById.get(requested.orderItemId);
       if (!orderItem) {
         throw ApiError.badRequest('One or more selected items do not belong to this order');
+      }
+      // Per-item rules were snapshotted at purchase (product.isReturnable / returnWindowDays).
+      if (!orderItem.isReturnable) {
+        throw ApiError.badRequest(`"${orderItem.productName}" is not eligible for return`);
+      }
+      const windowDays = orderItem.returnWindowDays ?? settings.returnWindowDays;
+      if (new Date() > addDays(deliveredAt, windowDays)) {
+        throw ApiError.badRequest(
+          `The ${windowDays}-day return window for "${orderItem.productName}" has closed`,
+        );
       }
       if (requested.quantity > orderItem.quantity) {
         throw ApiError.badRequest(
@@ -149,13 +154,15 @@ export const returnService = {
     const refundAmount = amount ?? Number(record.refundAmount ?? 0);
     if (refundAmount <= 0) throw ApiError.badRequest('Refund amount must be greater than 0');
 
-    // Restore stock for the returned quantities.
+    // Restore stock for the returned quantities (logged as RETURN_RECEIVED).
     await prisma.$transaction(async (tx) => {
       for (const item of record.items) {
-        await tx.productVariant.update({
-          where: { id: item.orderItem.variantId },
-          data: { stock: { increment: item.quantity } },
-        });
+        await stockMovementService.adjustStock(
+          item.orderItem.variantId,
+          item.quantity,
+          'RETURN_RECEIVED',
+          { note: record.returnNumber, client: tx },
+        );
       }
     });
 

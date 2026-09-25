@@ -7,6 +7,8 @@ import { pricingService, PricedLine } from './pricing.service';
 import { settingsService } from './settings.service';
 import { notificationService } from './notification.service';
 import { cartService, CartOwner } from './cart.service';
+import { cartInclude } from '../repositories/cart.repository';
+import { stockMovementService } from './stockMovement.service';
 import { ApiError } from '../utils/ApiError';
 import { formatSequentialNumber } from '../utils/generators';
 import { AddressSnapshot } from '../types/common.types';
@@ -86,12 +88,20 @@ export const orderService = {
       }
     }
 
+    pricingService.assertQuantityLimits(lines);
+
     const pricing = pricingService.compose(lines, discountAmount, settings);
     const address = await resolveAddress(owner.userId, input);
+    const codBlockedBy = pricingService.codBlockedProducts(lines);
 
     if (input.paymentMethod === 'COD') {
       if (!settings.codEnabled) {
         throw ApiError.badRequest('Cash on delivery is currently unavailable');
+      }
+      if (codBlockedBy.length > 0) {
+        throw ApiError.badRequest(
+          `Cash on delivery is not available for: ${codBlockedBy.join(', ')}`,
+        );
       }
       if (pricing.total > settings.codMaxOrderValue) {
         throw ApiError.badRequest(
@@ -100,7 +110,17 @@ export const orderService = {
       }
     }
 
-    return { pricing, address, paymentMethod: input.paymentMethod };
+    return {
+      pricing,
+      address,
+      paymentMethod: input.paymentMethod,
+      // Lets the checkout page grey out COD before the customer picks it.
+      codAvailable:
+        settings.codEnabled &&
+        codBlockedBy.length === 0 &&
+        pricing.total <= settings.codMaxOrderValue,
+      codBlockedBy,
+    };
   },
 
   /**
@@ -139,46 +159,16 @@ export const orderService = {
         `;
 
         // Re-read the cart INSIDE the lock so stock and prices are current.
+        // Same include as everywhere else, so pricing sees colours and product rules.
         const freshCart = await tx.cart.findUnique({
           where: { id: cart.id },
-          include: {
-            coupon: true,
-            items: {
-              include: {
-                variant: {
-                  include: {
-                    product: {
-                      select: {
-                        id: true,
-                        name: true,
-                        slug: true,
-                        brand: true,
-                        sellingPrice: true,
-                        status: true,
-                        deletedAt: true,
-                        hsnCode: true,
-                        gstRate: true,
-                        isOversized: true,
-                        shippingCharge: true,
-                        weightGrams: true,
-                        subCategoryId: true,
-                        subCategory: { select: { id: true, gstRate: true } },
-                        images: {
-                          orderBy: [{ isPrimary: 'desc' }, { displayOrder: 'asc' }],
-                          take: 1,
-                        },
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          },
+          include: cartInclude,
         });
 
         if (!freshCart) throw ApiError.notFound('Cart not found');
 
-        const lines = pricingService.buildLines(freshCart as never, settings);
+        const lines = pricingService.buildLines(freshCart, settings);
+        pricingService.assertQuantityLimits(lines);
 
         // Stock re-validated under the lock. This is the authoritative check.
         const unavailable = lines.filter((line) => !line.inStock);
@@ -214,6 +204,12 @@ export const orderService = {
 
         if (input.paymentMethod === 'COD') {
           if (!settings.codEnabled) throw ApiError.badRequest('Cash on delivery is unavailable');
+          const codBlockedBy = pricingService.codBlockedProducts(lines);
+          if (codBlockedBy.length > 0) {
+            throw ApiError.badRequest(
+              `Cash on delivery is not available for: ${codBlockedBy.join(', ')}`,
+            );
+          }
           if (pricing.total > settings.codMaxOrderValue) {
             throw ApiError.badRequest(
               `Cash on delivery is available only up to Rs.${settings.codMaxOrderValue}`,
@@ -231,8 +227,9 @@ export const orderService = {
           data: {
             orderNumber,
             userId: owner.userId ?? null,
-            guestEmail: input.guestEmail ?? null,
-            guestPhone: input.guestPhone ?? null,
+            // Checkout is members-only now; guest contact fields are only kept for old orders.
+            guestEmail: owner.userId ? null : (input.guestEmail ?? null),
+            guestPhone: owner.userId ? null : (input.guestPhone ?? null),
             status: initialStatus,
             subtotal: new Prisma.Decimal(pricing.subtotal),
             discountAmount: new Prisma.Decimal(pricing.discountAmount),
@@ -258,17 +255,19 @@ export const orderService = {
                 gstRate: new Prisma.Decimal(line.gstRate),
                 taxAmount: new Prisma.Decimal(line.taxAmount),
                 lineTotal: new Prisma.Decimal(line.lineTotal),
+                isReturnable: line.isReturnable,
+                returnWindowDays: line.returnWindowDays,
               })),
             },
           },
           include: { items: true },
         });
 
-        // Deduct stock and bump the popularity counter.
+        // Deduct stock (logged as ORDER_PLACED) and bump the popularity counter.
         for (const line of pricing.lines) {
-          await tx.productVariant.update({
-            where: { id: line.variantId },
-            data: { stock: { decrement: line.quantity } },
+          await stockMovementService.adjustStock(line.variantId, -line.quantity, 'ORDER_PLACED', {
+            note: orderNumber,
+            client: tx,
           });
           await tx.product.update({
             where: { id: line.productId },
@@ -473,9 +472,10 @@ export const orderService = {
 
     await prisma.$transaction(async (tx) => {
       for (const item of order.items) {
-        await tx.productVariant.update({
-          where: { id: item.variantId },
-          data: { stock: { increment: item.quantity } },
+        await stockMovementService.adjustStock(item.variantId, item.quantity, 'ORDER_CANCELLED', {
+          note: order.orderNumber,
+          adminId: actor.adminId ?? null,
+          client: tx,
         });
       }
 
@@ -539,10 +539,12 @@ export const orderService = {
       try {
         await prisma.$transaction(async (tx) => {
           for (const item of order.items) {
-            await tx.productVariant.update({
-              where: { id: item.variantId },
-              data: { stock: { increment: item.quantity } },
-            });
+            await stockMovementService.adjustStock(
+              item.variantId,
+              item.quantity,
+              'ORDER_CANCELLED',
+              { note: `${order.orderNumber} (payment timed out)`, client: tx },
+            );
           }
 
           await tx.order.update({
